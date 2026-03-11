@@ -3,7 +3,8 @@ import type { Analysis2Result, StrikeData } from "@/types";
 
 const RISK_FREE_RATE = 0.043;
 const CONTRACT_SIZE = 100;
-const MAX_DISTANCE = 0.10;
+const MAX_DISTANCE = 0.15;
+const MIN_OI = 10;
 
 interface RawOption {
   strike: number;
@@ -78,27 +79,41 @@ export function computeAnalysis2(
     };
   });
 
-  // Replace missing PCR with median
-  const validPCRs = strikeData.filter((d) => d.pcr >= 0).map((d) => d.pcr);
+  // 1. Filter to ±15% from spot AND minimum OI first
+  const lower = spot * (1 - MAX_DISTANCE);
+  const upper = spot * (1 + MAX_DISTANCE);
+  let filtered = strikeData.filter(
+    (d) => d.strike >= lower && d.strike <= upper && (d.callOI + d.putOI) >= MIN_OI
+  );
+
+  // Fallback: if too few strikes, relax OI filter
+  if (filtered.length < 5) {
+    filtered = strikeData.filter((d) => d.strike >= lower && d.strike <= upper);
+  }
+
+  if (filtered.length === 0) {
+    filtered = strikeData.slice(
+      Math.max(0, Math.floor(strikeData.length / 2) - 10),
+      Math.floor(strikeData.length / 2) + 10
+    );
+  }
+
+  // 2. Replace missing PCR with median (only within filtered set)
+  const validPCRs = filtered.filter((d) => d.pcr >= 0).map((d) => d.pcr);
   const medPCR = validPCRs.length > 0 ? median(validPCRs) : 1;
-  strikeData.forEach((d) => {
+  filtered.forEach((d) => {
     if (d.pcr < 0) d.pcr = medPCR;
   });
 
-  // Z-Score normalization
-  const zGexArr = zscore(strikeData.map((d) => d.totalGEX));
-  const zPcrArr = zscore(strikeData.map((d) => d.pcr));
+  // 3. Z-Score normalization ONLY on filtered strikes
+  const zGexArr = zscore(filtered.map((d) => d.totalGEX));
+  const zPcrArr = zscore(filtered.map((d) => d.pcr));
 
-  strikeData.forEach((d, i) => {
+  filtered.forEach((d, i) => {
     d.zGex = zGexArr[i];
     d.zPcr = zPcrArr[i];
     d.institutionalPressure = d.zGex + d.zPcr;
   });
-
-  // Filter ±10% from spot
-  const lower = spot * (1 - MAX_DISTANCE);
-  const upper = spot * (1 + MAX_DISTANCE);
-  const filtered = strikeData.filter((d) => d.strike >= lower && d.strike <= upper);
 
   // Support: below spot, GEX > 0, PCR > 1 → max institutional pressure
   let supports = filtered.filter((d) => d.strike < spot && d.totalGEX > 0 && d.pcr > 1);
