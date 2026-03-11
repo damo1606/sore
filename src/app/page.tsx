@@ -6,11 +6,21 @@ import LevelsPanel from "@/components/LevelsPanel";
 import GexChart from "@/components/GexChart";
 import DealerFlowChart from "@/components/DealerFlowChart";
 import VannaChart from "@/components/VannaChart";
+import CandlestickChart from "@/components/CandlestickChart";
+
+interface Candle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
 
 export default function Home() {
   const [ticker, setTicker] = useState("SPY");
   const [expiration, setExpiration] = useState("");
   const [data, setData] = useState<AnalysisResult | null>(null);
+  const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,11 +32,20 @@ export default function Home() {
       const url = expiration
         ? `/api/analysis?ticker=${ticker}&expiration=${expiration}`
         : `/api/analysis?ticker=${ticker}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error");
-      setData(json);
-      setExpiration(json.expiration);
+
+      const [analysisRes, chartRes] = await Promise.all([
+        fetch(url),
+        fetch(`/api/chart?ticker=${ticker}&range=3mo`),
+      ]);
+
+      const analysisJson = await analysisRes.json();
+      if (!analysisRes.ok) throw new Error(analysisJson.error ?? "Error");
+
+      const chartJson = await chartRes.json();
+
+      setData(analysisJson);
+      setExpiration(analysisJson.expiration);
+      setCandles(chartJson.candles ?? []);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -136,6 +155,18 @@ export default function Home() {
 
           {/* Key Levels */}
           <LevelsPanel levels={data.levels} spot={data.spot} />
+
+          {/* Candlestick Chart with S/R Zones */}
+          <div className="bg-card border border-border p-6">
+            <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
+              PRICE ACTION — JAPANESE CANDLESTICKS + INSTITUTIONAL LEVELS (3 MONTHS)
+            </div>
+            <CandlestickChart
+              candles={candles}
+              levels={data.levels}
+              spot={data.spot}
+            />
+          </div>
 
           {/* GEX Profile */}
           <div className="bg-card border border-border p-6">
