@@ -16,6 +16,29 @@ export interface VannaPoint {
   vanna: number;
 }
 
+export interface StrikeData {
+  strike: number;
+  callOI: number;
+  putOI: number;
+  gexCall: number;
+  gexPut: number;
+  totalGEX: number;
+  pcr: number;
+  zGex: number;
+  zPcr: number;
+  institutionalPressure: number;
+}
+
+export interface Analysis2Result {
+  ticker: string;
+  spot: number;
+  expiration: string;
+  availableExpirations: string[];
+  support: number;
+  resistance: number;
+  filteredStrikes: StrikeData[];
+}
+
 export interface AnalysisResult {
   ticker: string;
   spot: number;
