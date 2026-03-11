@@ -5,15 +5,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: "#0d0d0d",
-        surface: "#161616",
-        border: "#2a2a2a",
+        bg: "#0a0a0a",
+        surface: "#111111",
+        card: "#161616",
+        border: "#222222",
         accent: "#00e676",
         danger: "#ff1744",
-        muted: "#888",
-      },
-      fontFamily: {
-        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+        warning: "#ffd740",
+        info: "#448aff",
+        muted: "#555555",
+        subtle: "#888888",
       },
     },
   },
