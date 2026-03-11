@@ -45,23 +45,23 @@ export default function LevelsPanel({ levels, spot }: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
       {items.map((item) => {
         const pct = ((item.value - spot) / spot) * 100;
         return (
           <div
             key={item.label}
-            className={`bg-card border border-border border-t-2 ${item.borderColor} p-4`}
+            className={`bg-card border border-border border-t-4 ${item.borderColor} p-5`}
           >
-            <div className="text-xs text-muted tracking-widest mb-2">{item.label}</div>
-            <div className={`text-2xl font-bold ${item.color}`}>
+            <div className="text-sm text-muted tracking-widest mb-2 font-semibold">{item.label}</div>
+            <div className={`text-3xl font-bold ${item.color}`}>
               ${item.value.toFixed(2)}
             </div>
-            <div className="text-xs text-subtle mt-1">
+            <div className="text-sm text-subtle mt-2">
               {pct >= 0 ? "+" : ""}
               {pct.toFixed(2)}% vs spot
             </div>
-            <div className="text-xs text-muted mt-2 opacity-60">{item.desc}</div>
+            <div className="text-xs text-muted mt-1">{item.desc}</div>
           </div>
         );
       })}

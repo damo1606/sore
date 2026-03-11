@@ -37,19 +37,19 @@ export default function Home() {
   const isPositiveGamma = data ? data.spot > data.levels.gammaFlip : null;
 
   return (
-    <div className="min-h-screen bg-bg text-white">
+    <div className="min-h-screen bg-bg text-gray-900">
       {/* ── Header ── */}
-      <header className="border-b border-border px-6 py-3 flex items-center justify-between sticky top-0 bg-bg z-50">
+      <header className="border-b border-border px-6 py-4 flex items-center justify-between sticky top-0 bg-bg z-50 shadow-sm">
         <div className="flex items-center gap-4">
-          <span className="text-accent font-bold text-lg tracking-[0.3em]">SORE</span>
-          <span className="text-muted text-xs tracking-widest hidden sm:block">
+          <span className="text-accent font-bold text-2xl tracking-[0.3em]">SORE</span>
+          <span className="text-muted text-sm tracking-widest hidden sm:block">
             INSTITUTIONAL OPTIONS FLOW
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <input
-            className="bg-surface border border-border text-white px-3 py-1.5 text-sm uppercase tracking-widest w-24 focus:outline-none focus:border-accent transition-colors"
+            className="bg-surface border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
             value={ticker}
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === "Enter" && analyze()}
@@ -59,11 +59,9 @@ export default function Home() {
 
           {data && data.availableExpirations.length > 0 && (
             <select
-              className="bg-surface border border-border text-white px-3 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors"
+              className="bg-surface border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
               value={expiration}
-              onChange={(e) => {
-                setExpiration(e.target.value);
-              }}
+              onChange={(e) => setExpiration(e.target.value)}
             >
               {data.availableExpirations.map((exp) => (
                 <option key={exp} value={exp}>
@@ -76,7 +74,7 @@ export default function Home() {
           <button
             onClick={analyze}
             disabled={loading}
-            className="bg-accent text-black px-5 py-1.5 text-sm font-bold tracking-widest hover:bg-green-300 disabled:opacity-40 transition-colors"
+            className="bg-accent text-white px-6 py-2 text-base font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
           >
             {loading ? "..." : "ANALYZE"}
           </button>
@@ -85,7 +83,7 @@ export default function Home() {
 
       {/* ── Error ── */}
       {error && (
-        <div className="mx-6 mt-4 p-3 border border-danger text-danger text-xs tracking-wide">
+        <div className="mx-6 mt-4 p-4 border border-danger text-danger text-sm tracking-wide">
           ✕ {error}
         </div>
       )}
@@ -93,50 +91,46 @@ export default function Home() {
       {/* ── Empty state ── */}
       {!data && !loading && !error && (
         <div className="flex flex-col items-center justify-center h-[80vh] gap-4 text-muted">
-          <div className="w-16 h-16 border border-border flex items-center justify-center text-2xl text-border">
+          <div className="w-20 h-20 border-2 border-border flex items-center justify-center text-4xl text-muted">
             ◈
           </div>
-          <p className="text-xs tracking-widest">ENTER A TICKER AND CLICK ANALYZE</p>
-          <p className="text-xs opacity-50">SPY · QQQ · NVDA · AAPL · TSLA · DIA</p>
+          <p className="text-base tracking-widest">ENTER A TICKER AND CLICK ANALYZE</p>
+          <p className="text-sm opacity-60">SPY · QQQ · NVDA · AAPL · TSLA · DIA</p>
         </div>
       )}
 
       {/* ── Loading ── */}
       {loading && (
         <div className="flex items-center justify-center h-[80vh]">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs text-muted tracking-widest">FETCHING OPTIONS DATA...</p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+            <p className="text-base text-muted tracking-widest">FETCHING OPTIONS DATA...</p>
           </div>
         </div>
       )}
 
       {/* ── Dashboard ── */}
       {data && !loading && (
-        <main className="p-6 space-y-5">
+        <main className="p-6 space-y-6">
           {/* Spot + Gamma Regime */}
-          <div className="flex flex-wrap items-end gap-6">
+          <div className="flex flex-wrap items-end gap-8">
             <div>
-              <div className="text-xs text-muted tracking-widest mb-1">SPOT PRICE</div>
-              <div className="text-5xl font-bold text-white">${data.spot.toFixed(2)}</div>
+              <div className="text-sm text-muted tracking-widest mb-1">SPOT PRICE</div>
+              <div className="text-6xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
             </div>
-            <div className="border-l border-border pl-6">
-              <div className="text-xs text-muted tracking-widest mb-1">GAMMA REGIME</div>
-              <div
-                className={`text-2xl font-bold tracking-wide ${
-                  isPositiveGamma ? "text-accent" : "text-danger"
-                }`}
-              >
+            <div className="border-l-2 border-border pl-8">
+              <div className="text-sm text-muted tracking-widest mb-1">GAMMA REGIME</div>
+              <div className={`text-3xl font-bold tracking-wide ${isPositiveGamma ? "text-accent" : "text-danger"}`}>
                 {isPositiveGamma ? "▲ POSITIVE GAMMA" : "▼ NEGATIVE GAMMA"}
               </div>
             </div>
-            <div className="border-l border-border pl-6">
-              <div className="text-xs text-muted tracking-widest mb-1">EXPIRATION</div>
-              <div className="text-2xl font-bold text-subtle">{data.expiration}</div>
+            <div className="border-l-2 border-border pl-8">
+              <div className="text-sm text-muted tracking-widest mb-1">EXPIRATION</div>
+              <div className="text-3xl font-bold text-subtle">{data.expiration}</div>
             </div>
-            <div className="border-l border-border pl-6">
-              <div className="text-xs text-muted tracking-widest mb-1">TICKER</div>
-              <div className="text-2xl font-bold text-accent">{data.ticker}</div>
+            <div className="border-l-2 border-border pl-8">
+              <div className="text-sm text-muted tracking-widest mb-1">TICKER</div>
+              <div className="text-3xl font-bold text-accent">{data.ticker}</div>
             </div>
           </div>
 
@@ -144,17 +138,17 @@ export default function Home() {
           <LevelsPanel levels={data.levels} spot={data.spot} />
 
           {/* GEX Profile */}
-          <div className="bg-card border border-border p-5">
-            <div className="text-xs text-muted tracking-widest mb-4">
+          <div className="bg-card border border-border p-6">
+            <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
               GAMMA EXPOSURE PROFILE — GEX BY STRIKE
             </div>
             <GexChart data={data.gexProfile} spot={data.spot} levels={data.levels} />
           </div>
 
           {/* Dealer Flow + Vanna */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-card border border-border p-5">
-              <div className="text-xs text-muted tracking-widest mb-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-card border border-border p-6">
+              <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
                 DEALER HEDGING FLOW MODEL
               </div>
               <DealerFlowChart
@@ -164,8 +158,8 @@ export default function Home() {
                 gammaFlip={data.levels.gammaFlip}
               />
             </div>
-            <div className="bg-card border border-border p-5">
-              <div className="text-xs text-muted tracking-widest mb-4">
+            <div className="bg-card border border-border p-6">
+              <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
                 VANNA EXPOSURE BY STRIKE
               </div>
               <VannaChart data={data.vannaProfile} spot={data.spot} />
