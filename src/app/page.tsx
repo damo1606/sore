@@ -162,6 +162,75 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Institutional Pressure + Put/Call Ratio */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* Institutional Pressure */}
+            <div className="bg-card border border-border p-6">
+              <div className="text-sm text-muted tracking-widest mb-3 font-semibold">
+                INSTITUTIONAL PRESSURE
+              </div>
+              <div className={`text-4xl font-bold mb-3 ${data.institutionalPressure >= 0 ? "text-accent" : "text-danger"}`}>
+                {data.institutionalPressure >= 0 ? "+" : ""}{data.institutionalPressure.toFixed(1)}%
+              </div>
+              {/* Gauge bar */}
+              <div className="w-full h-4 bg-surface border border-border rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${data.institutionalPressure >= 0 ? "bg-accent" : "bg-danger"}`}
+                  style={{ width: `${Math.min(Math.abs(data.institutionalPressure), 100)}%`, marginLeft: data.institutionalPressure >= 0 ? "50%" : `${50 - Math.min(Math.abs(data.institutionalPressure), 50)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted mt-1">
+                <span>BEARISH</span>
+                <span>NEUTRAL</span>
+                <span>BULLISH</span>
+              </div>
+              <div className="text-xs text-muted mt-3">
+                {data.institutionalPressure >= 20
+                  ? "Dealers fuertemente posicionados al alza"
+                  : data.institutionalPressure >= 5
+                  ? "Sesgo alcista moderado — soporte institucional"
+                  : data.institutionalPressure >= -5
+                  ? "Posicionamiento neutral — mercado en equilibrio"
+                  : data.institutionalPressure >= -20
+                  ? "Sesgo bajista moderado — presión vendedora"
+                  : "Dealers fuertemente posicionados a la baja"}
+              </div>
+            </div>
+
+            {/* Put/Call Ratio */}
+            <div className="bg-card border border-border p-6">
+              <div className="text-sm text-muted tracking-widest mb-3 font-semibold">
+                PUT / CALL RATIO
+              </div>
+              <div className={`text-4xl font-bold mb-3 ${data.putCallRatio > 1.2 ? "text-danger" : data.putCallRatio < 0.7 ? "text-accent" : "text-warning"}`}>
+                {data.putCallRatio.toFixed(2)}
+              </div>
+              {/* Ratio bar */}
+              <div className="w-full h-4 bg-surface border border-border rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${data.putCallRatio > 1.2 ? "bg-danger" : data.putCallRatio < 0.7 ? "bg-accent" : "bg-warning"}`}
+                  style={{ width: `${Math.min((data.putCallRatio / 2) * 100, 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted mt-1">
+                <span>0 — BULLISH</span>
+                <span>1.0</span>
+                <span>2.0 — BEARISH</span>
+              </div>
+              <div className="text-xs text-muted mt-3">
+                {data.putCallRatio > 1.5
+                  ? "Miedo extremo — hedging institucional masivo"
+                  : data.putCallRatio > 1.2
+                  ? "Sesgo bajista — más puts que calls"
+                  : data.putCallRatio > 0.9
+                  ? "Mercado balanceado — sin sesgo claro"
+                  : data.putCallRatio > 0.7
+                  ? "Sesgo alcista — más calls que puts"
+                  : "Optimismo extremo — alta demanda de calls"}
+              </div>
+            </div>
+          </div>
+
           {/* Key Levels */}
           <LevelsPanel levels={data.levels} spot={data.spot} />
 

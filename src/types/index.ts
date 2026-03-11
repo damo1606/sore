@@ -28,4 +28,7 @@ export interface AnalysisResult {
     prices: number[];
     flows: number[];
   };
+  putCallRatio: number;
+  institutionalPressure: number;
+  netGex: number;
 }

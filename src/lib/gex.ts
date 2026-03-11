@@ -108,6 +108,20 @@ export function computeAnalysis(
   const support = gexProfile.reduce((m, p) => (p.gex > m.gex ? p : m), gexProfile[0])?.strike ?? spot;
   const resistance = gexProfile.reduce((m, p) => (p.gex < m.gex ? p : m), gexProfile[0])?.strike ?? spot;
 
+  // Put/Call Ratio (by open interest)
+  const totalCallOI = calls.reduce((sum, o) => sum + o.oi, 0);
+  const totalPutOI = puts.reduce((sum, o) => sum + o.oi, 0);
+  const putCallRatio = totalCallOI > 0 ? totalPutOI / totalCallOI : 0;
+
+  // Institutional Pressure: net GEX bias normalized to -100 / +100
+  const totalCallGEX = calls.reduce((sum, o) => sum + o.gex, 0);
+  const totalPutGEX = Math.abs(puts.reduce((sum, o) => sum + o.gex, 0));
+  const netGex = totalCallGEX - totalPutGEX;
+  const institutionalPressure =
+    totalCallGEX + totalPutGEX > 0
+      ? (netGex / (totalCallGEX + totalPutGEX)) * 100
+      : 0;
+
   // Dealer hedging flow model
   const steps = 60;
   const prices: number[] = [];
@@ -135,5 +149,8 @@ export function computeAnalysis(
     gexProfile,
     vannaProfile,
     dealerFlow: { prices, flows },
+    putCallRatio: parseFloat(putCallRatio.toFixed(2)),
+    institutionalPressure: parseFloat(institutionalPressure.toFixed(1)),
+    netGex,
   };
 }
