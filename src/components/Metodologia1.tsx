@@ -19,6 +19,7 @@ interface Candle {
 export default function Metodologia1() {
   const [ticker, setTicker] = useState("SPY");
   const [expiration, setExpiration] = useState("");
+  const [allExpirations, setAllExpirations] = useState<string[]>([]);
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,7 +55,21 @@ export default function Metodologia1() {
 
   async function analyze() {
     if (!ticker.trim()) return;
-    await fetchAnalysis(ticker, expiration);
+
+    try {
+      const expRes = await fetch(`/api/expirations?ticker=${ticker}`);
+      const expJson = await expRes.json();
+      if (expRes.ok && expJson.expirations?.length > 0) {
+        setAllExpirations(expJson.expirations);
+        const firstExp = expiration || expJson.expirations[0];
+        setExpiration(firstExp);
+        await fetchAnalysis(ticker, firstExp);
+      } else {
+        await fetchAnalysis(ticker, expiration);
+      }
+    } catch {
+      await fetchAnalysis(ticker, expiration);
+    }
   }
 
   async function handleExpirationChange(exp: string) {
@@ -76,13 +91,13 @@ export default function Metodologia1() {
           placeholder="TICKER"
           maxLength={6}
         />
-        {data && data.availableExpirations.length > 0 && (
+        {allExpirations.length > 0 && (
           <select
             className="bg-bg border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
             value={expiration}
             onChange={(e) => handleExpirationChange(e.target.value)}
           >
-            {data.availableExpirations.map((exp) => (
+            {allExpirations.map((exp) => (
               <option key={exp} value={exp}>{exp}</option>
             ))}
           </select>
