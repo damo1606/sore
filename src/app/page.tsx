@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { AnalysisResult } from "@/types";
 import LevelsPanel from "@/components/LevelsPanel";
 import GexChart from "@/components/GexChart";
@@ -24,18 +24,17 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function analyze() {
-    if (!ticker.trim()) return;
+  const fetchAnalysis = useCallback(async (t: string, exp: string) => {
     setLoading(true);
     setError("");
     try {
-      const url = expiration
-        ? `/api/analysis?ticker=${ticker}&expiration=${expiration}`
-        : `/api/analysis?ticker=${ticker}`;
+      const url = exp
+        ? `/api/analysis?ticker=${t}&expiration=${exp}`
+        : `/api/analysis?ticker=${t}`;
 
       const [analysisRes, chartRes] = await Promise.all([
         fetch(url),
-        fetch(`/api/chart?ticker=${ticker}&range=3mo`),
+        fetch(`/api/chart?ticker=${t}&range=3mo`),
       ]);
 
       const analysisJson = await analysisRes.json();
@@ -51,6 +50,16 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  async function analyze() {
+    if (!ticker.trim()) return;
+    await fetchAnalysis(ticker, expiration);
+  }
+
+  async function handleExpirationChange(exp: string) {
+    setExpiration(exp);
+    await fetchAnalysis(ticker, exp);
   }
 
   const isPositiveGamma = data ? data.spot > data.levels.gammaFlip : null;
@@ -80,7 +89,7 @@ export default function Home() {
             <select
               className="bg-surface border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
               value={expiration}
-              onChange={(e) => setExpiration(e.target.value)}
+              onChange={(e) => handleExpirationChange(e.target.value)}
             >
               {data.availableExpirations.map((exp) => (
                 <option key={exp} value={exp}>
