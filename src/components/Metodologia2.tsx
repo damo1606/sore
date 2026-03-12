@@ -95,14 +95,14 @@ export default function Metodologia2() {
   return (
     <div>
       {/* Controls */}
-      <div className="border-b border-border px-6 py-4 flex items-center gap-3 bg-surface">
+      <div className="border-b border-border px-6 py-4 flex items-center gap-3 bg-surface flex-wrap">
         <input
           className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === "Enter" && analyze()}
           placeholder="TICKER"
-          maxLength={6}
+          maxLength={10}
         />
         {allExpirations.length > 0 && (
           <select
@@ -110,8 +110,19 @@ export default function Metodologia2() {
             value={expiration}
             onChange={(e) => handleExpirationChange(e.target.value)}
           >
-            {allExpirations.map((exp) => (
-              <option key={exp} value={exp}>{exp}</option>
+            {Object.entries(
+              allExpirations.reduce<Record<string, string[]>>((acc, exp) => {
+                const label = new Date(exp + "T12:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
+                if (!acc[label]) acc[label] = [];
+                acc[label].push(exp);
+                return acc;
+              }, {})
+            ).map(([monthLabel, dates]) => (
+              <optgroup key={monthLabel} label={monthLabel}>
+                {dates.map((exp) => (
+                  <option key={exp} value={exp}>{exp}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         )}
@@ -122,6 +133,9 @@ export default function Metodologia2() {
         >
           {loading ? "..." : "ANALYZE"}
         </button>
+        {allExpirations.length > 0 && (
+          <span className="text-xs text-muted">{allExpirations.length} expirations available</span>
+        )}
       </div>
 
       {/* Error */}
@@ -133,8 +147,8 @@ export default function Metodologia2() {
       {!data && !loading && !error && (
         <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-muted">
           <div className="w-20 h-20 border-2 border-border flex items-center justify-center text-4xl">◈</div>
-          <p className="text-base tracking-widest">ENTER A TICKER AND CLICK ANALYZE</p>
-          <p className="text-sm opacity-60">SPY · QQQ · NVDA · AAPL · TSLA · DIA</p>
+          <p className="text-base tracking-widest">ENTER ANY US TICKER AND CLICK ANALYZE</p>
+          <p className="text-sm opacity-60">SPY · QQQ · NVDA · AAPL · TSLA · MSFT · AMZN · GOOGL · META · AMD</p>
         </div>
       )}
 
