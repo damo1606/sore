@@ -4,14 +4,16 @@ import { useState } from "react";
 import Metodologia1 from "@/components/Metodologia1";
 import Metodologia2 from "@/components/Metodologia2";
 import Metodologia3 from "@/components/Metodologia3";
+import Metodologia4 from "@/components/Metodologia4";
 
-const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3"] as const;
+const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_DESCRIPTIONS: Record<Tab, string> = {
   "METODOLOGÍA 1": "GEX · VANNA · DEALER FLOW",
   "METODOLOGÍA 2": "Z-SCORE GEX + PCR",
-  "METODOLOGÍA 3": "MULTI-EXPIRATION CONFLUENCE",
+  "METODOLOGÍA 3": "CONFLUENCE 3D",
+  "METODOLOGÍA 4": "MAPA DE CALOR S/R",
 };
 
 export default function Home() {
@@ -51,6 +53,7 @@ export default function Home() {
       {activeTab === "METODOLOGÍA 1" && <Metodologia1 />}
       {activeTab === "METODOLOGÍA 2" && <Metodologia2 />}
       {activeTab === "METODOLOGÍA 3" && <Metodologia3 />}
+      {activeTab === "METODOLOGÍA 4" && <Metodologia4 />}
     </div>
   );
 }
