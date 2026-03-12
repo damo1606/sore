@@ -59,6 +59,7 @@ export default function Metodologia3() {
 
       const chartJson = await chartRes.json();
       setData(analysisJson);
+      setExpiration(analysisJson.expiration);
       setCandles(chartJson.candles ?? []);
     } catch (e: any) {
       setError(e.message);
@@ -141,10 +142,8 @@ export default function Metodologia3() {
         >
           {loading ? "..." : "ANALYZE"}
         </button>
-        {data && (
-          <span className="text-xs text-muted tracking-wide">
-            Agregado desde {data.expirationsUsed[0]} · {data.expirationsUsed.length} vencimientos
-          </span>
+        {allExpirations.length > 0 && (
+          <span className="text-xs text-muted">{allExpirations.length} expirations available</span>
         )}
       </div>
 
@@ -158,7 +157,7 @@ export default function Metodologia3() {
         <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-muted">
           <div className="w-20 h-20 border-2 border-border flex items-center justify-center text-4xl">◈</div>
           <p className="text-base tracking-widest">MODELO MULTI-EXPIRACIÓN — MÁXIMA CONFIABILIDAD</p>
-          <p className="text-sm opacity-60">Selecciona una fecha de inicio · agrega las siguientes 5 expirations</p>
+          <p className="text-sm opacity-60">Z(GEX) + Z(OI) + Z(PCR) — modelo de confluencia de 3 dimensiones</p>
           <p className="text-sm opacity-40">SPY · QQQ · NVDA · AAPL · TSLA · MSFT · AMZN · GOOGL</p>
         </div>
       )}
@@ -188,14 +187,8 @@ export default function Metodologia3() {
               <div className="text-3xl font-bold text-accent">{data.ticker}</div>
             </div>
             <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">VENCIMIENTOS AGREGADOS</div>
-              <div className="text-3xl font-bold text-subtle">{data.expirationsUsed.length}</div>
-            </div>
-            <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">RANGO</div>
-              <div className="text-lg font-bold text-gray-700">
-                {data.expirationsUsed[0]} → {data.expirationsUsed[data.expirationsUsed.length - 1]}
-              </div>
+              <div className="text-sm text-muted tracking-widest mb-1">EXPIRATION</div>
+              <div className="text-3xl font-bold text-subtle">{data.expiration}</div>
             </div>
           </div>
 
@@ -261,7 +254,7 @@ export default function Metodologia3() {
           {/* Aggregated GEX */}
           <div className="bg-card border border-border p-6">
             <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
-              GEX AGREGADO POR STRIKE — {data.expirationsUsed.length} VENCIMIENTOS
+              GAMMA EXPOSURE (GEX) POR STRIKE — ±15% DEL SPOT
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.filteredStrikes} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>

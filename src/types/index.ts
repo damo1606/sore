@@ -54,6 +54,8 @@ export interface AggStrikeData {
 export interface Analysis3Result {
   ticker: string;
   spot: number;
+  expiration: string;
+  availableExpirations: string[];
   expirationsUsed: string[];
   support: number;
   resistance: number;

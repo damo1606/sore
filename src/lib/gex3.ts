@@ -161,6 +161,8 @@ export function computeAnalysis3(
   return {
     ticker,
     spot,
+    expiration: expDataList[0]?.expiration ?? "",
+    availableExpirations: [] as string[], // filled by the route
     expirationsUsed: expDataList.map((e) => e.expiration),
     support: supportRow?.strike ?? spot * 0.97,
     resistance: resistanceRow?.strike ?? spot * 1.03,

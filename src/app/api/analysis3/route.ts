@@ -86,44 +86,32 @@ export async function GET(request: NextRequest) {
       date: new Date(ts * 1000).toISOString().split("T")[0],
     }));
 
-    // Start from the selected expiration (or from index 0 if none given)
-    const startIdx = expiration
-      ? Math.max(allExpDates.findIndex((e) => e.date === expiration), 0)
-      : 0;
+    const availableExpirations = allExpDates.map((e) => e.date);
 
-    // Aggregate the selected expiration + next 4 (up to 5 total)
-    const targetExps = allExpDates.slice(startIdx, startIdx + 5);
+    // Determine which expiration to analyze
+    let optData = initial.options?.[0];
+    let selectedExpiration = allExpDates[0]?.date ?? "";
 
-    if (!targetExps.length) {
-      return NextResponse.json({ error: "No options chain available" }, { status: 400 });
-    }
-
-    const expDataList: ExpData[] = [];
-
-    // If the first target expiration is the default (index 0), reuse initial.options[0]
-    // Otherwise fetch it explicitly — all targets fetch in parallel
-    const results = await Promise.allSettled(
-      targetExps.map(({ ts, date }, i) => {
-        if (i === 0 && startIdx === 0) {
-          // Already have this data from the initial call
-          return Promise.resolve({ date, optData: initial.options?.[0] });
-        }
-        return fetchOptions(ticker, cookie, crumb, ts).then((result) => ({
-          date,
-          optData: result.options?.[0],
-        }));
-      })
-    );
-
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value.optData) {
-        const chain = parseChain(r.value.optData);
-        expDataList.push({ expiration: r.value.date, ...chain });
+    if (expiration && expiration !== selectedExpiration) {
+      const exactTs = allExpTs.find(
+        (ts) => new Date(ts * 1000).toISOString().split("T")[0] === expiration
+      );
+      if (exactTs) {
+        const specific = await fetchOptions(ticker, cookie, crumb, exactTs);
+        optData = specific.options?.[0];
+        selectedExpiration = expiration;
       }
     }
 
+    if (!optData) {
+      return NextResponse.json({ error: "No options chain available" }, { status: 400 });
+    }
+
+    const chain = parseChain(optData);
+    const expDataList: ExpData[] = [{ expiration: selectedExpiration, ...chain }];
+
     const analysis = computeAnalysis3(ticker, spot, expDataList);
-    return NextResponse.json(analysis);
+    return NextResponse.json({ ...analysis, availableExpirations });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "Unknown error" }, { status: 500 });
   }
