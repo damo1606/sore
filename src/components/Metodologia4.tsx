@@ -51,7 +51,33 @@ const ALERT_COLORS: Record<string, string> = {
   SAFE:   "text-accent border-accent bg-green-50",
 };
 
-// ─── ProximityHeatmap ────────────────────────────────────────────────────────
+// ─── Cell colour helpers for the 2-D grid ────────────────────────────────────
+
+function cellGex(v: number, maxAbs: number) {
+  const t = Math.min(Math.abs(v) / maxAbs, 1);
+  const a = (0.12 + t * 0.78).toFixed(2);
+  return v >= 0 ? `rgba(0,168,84,${a})` : `rgba(229,57,53,${a})`;
+}
+function cellOI(v: number, maxOI: number) {
+  const t = Math.min(v / maxOI, 1);
+  const a = (0.08 + t * 0.82).toFixed(2);
+  return `rgba(21,101,192,${a})`;
+}
+function cellPcr(v: number) {
+  const dev = Math.min(Math.abs(v - 1) / 1.5, 1);
+  const a   = (0.12 + dev * 0.78).toFixed(2);
+  return v > 1 ? `rgba(0,168,84,${a})` : `rgba(229,57,53,${a})`;
+}
+function cellConf(v: number, maxAbs: number) {
+  const t = Math.min(Math.abs(v) / maxAbs, 1);
+  const a = (0.12 + t * 0.78).toFixed(2);
+  return v >= 0 ? `rgba(0,168,84,${a})` : `rgba(229,57,53,${a})`;
+}
+function textOnDark(alpha: number) {
+  return alpha > 0.5 ? "#fff" : "#374151";
+}
+
+// ─── ProximityHeatmap — 2-D grid ─────────────────────────────────────────────
 
 function ProximityHeatmap({
   strikes,
@@ -64,87 +90,160 @@ function ProximityHeatmap({
   support: number;
   resistance: number;
 }) {
-  const sorted = [...strikes].sort((a, b) => b.strike - a.strike);
-  const maxOI = Math.max(...strikes.map((s) => s.totalOI), 1);
+  const sorted   = [...strikes].sort((a, b) => b.strike - a.strike);
+  const maxOI    = Math.max(...strikes.map((s) => s.totalOI), 1);
+  const maxGexAb = Math.max(...strikes.map((s) => Math.abs(s.totalGEX)), 1);
+  const maxConfAb = Math.max(...strikes.map((s) => Math.abs(s.confluenceScore)), 1);
+
+  const COL = "flex items-center justify-center text-[10px] font-mono rounded h-10 transition-all";
+  const HDR = "flex items-center justify-center text-[9px] font-bold tracking-widest text-muted h-7";
 
   return (
-    <div className="space-y-[3px]">
+    <div className="overflow-x-auto">
       {/* Legend */}
-      <div className="flex items-center gap-6 mb-3 text-xs text-muted">
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded" style={{ background: "rgba(229,57,53,0.85)" }} />
+      <div className="flex flex-wrap items-center gap-5 mb-4 text-xs text-muted">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-4 rounded" style={{ background: "rgba(229,57,53,0.82)" }} />
           Acercándose a resistencia
         </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded" style={{ background: "rgba(245,166,35,0.95)" }} />
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-4 rounded bg-yellow-400" />
           Spot actual
         </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded" style={{ background: "rgba(0,168,84,0.85)" }} />
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-4 rounded" style={{ background: "rgba(0,168,84,0.82)" }} />
           Acercándose a soporte
         </span>
-        <span className="flex items-center gap-1 ml-auto">
-          Ancho de barra = Open Interest relativo
+        <span className="flex items-center gap-1.5 ml-auto">
+          <span className="inline-block w-4 h-4 rounded" style={{ background: "rgba(21,101,192,0.72)" }} />
+          Open Interest
         </span>
+        <span className="text-[10px]">Mayor intensidad = mayor cercanía o magnitud</span>
       </div>
 
-      {sorted.map((s) => {
-        const isSupport    = s.strike === support;
-        const isResistance = s.strike === resistance;
-        const isNearSpot   = Math.abs(s.strike - spot) < 0.5;
-        const barWidth     = Math.max(4, (s.totalOI / maxOI) * 100);
-        const distPct      = Math.abs(s.strike - spot) / spot * 100;
-        const bg           = proximityColor(s.strike, spot);
-        const border       = isSupport || isResistance || isNearSpot
-          ? proximityBorderColor(s.strike, spot)
-          : "transparent";
+      {/* Column headers */}
+      <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: "72px 1fr 64px 64px 64px 64px 56px" }}>
+        <div className={HDR}>STRIKE</div>
+        <div className={HDR}>PROXIMIDAD AL SPOT</div>
+        <div className={HDR}>GEX</div>
+        <div className={HDR}>OI</div>
+        <div className={HDR}>PCR</div>
+        <div className={HDR}>CONF</div>
+        <div className={HDR}>±%</div>
+      </div>
 
-        return (
-          <div key={s.strike} className="flex items-center gap-2 group">
-            {/* Strike label */}
-            <div className="w-16 text-right text-xs font-mono text-gray-500 shrink-0">
-              ${s.strike}
-            </div>
+      {/* Rows */}
+      <div className="space-y-[3px]">
+        {sorted.map((s) => {
+          const isSupport    = s.strike === support;
+          const isResistance = s.strike === resistance;
+          const isSpot       = Math.abs(s.strike - spot) < 0.5;
+          const distPct      = Math.abs(s.strike - spot) / spot * 100;
 
-            {/* Heat bar */}
-            <div className="flex-1 h-7 relative">
-              <div
-                className="h-full rounded transition-all duration-300"
-                style={{
-                  width: `${barWidth}%`,
-                  background: bg,
-                  borderLeft: `3px solid ${border}`,
-                  minWidth: "6px",
-                }}
-              />
-              {/* Key level badges */}
-              {isResistance && (
-                <span className="absolute left-[calc(${barWidth}%+6px)] top-1 text-[9px] font-bold text-danger tracking-widest">
-                  ▲ RESISTENCIA
-                </span>
-              )}
-              {isSupport && (
-                <span className="absolute left-[calc(${barWidth}%+6px)] top-1 text-[9px] font-bold text-accent tracking-widest">
-                  ▼ SOPORTE
-                </span>
-              )}
-              {isNearSpot && (
-                <span className="absolute right-2 top-1 text-[9px] font-bold text-yellow-600 tracking-widest">
-                  ◆ SPOT
-                </span>
-              )}
-            </div>
+          // Proximity bar
+          const proxIntensity = Math.max(0, 1 - distPct / 15);
+          const proxAlpha     = 0.1 + proxIntensity * 0.85;
+          const proxBg        = isSpot
+            ? "rgba(245,166,35,0.95)"
+            : s.strike > spot
+            ? `rgba(229,57,53,${proxAlpha.toFixed(2)})`
+            : `rgba(0,168,84,${proxAlpha.toFixed(2)})`;
+          const proxBarW = Math.max(4, proxIntensity * 100);
 
-            {/* Distance */}
+          // Cell backgrounds
+          const bgGex  = cellGex(s.totalGEX, maxGexAb);
+          const bgOI   = cellOI(s.totalOI, maxOI);
+          const bgPcr  = cellPcr(s.weightedPCR);
+          const bgConf = cellConf(s.confluenceScore, maxConfAb);
+
+          // Row border for key levels
+          const rowBorder = isResistance
+            ? "2px solid #e53935"
+            : isSupport
+            ? "2px solid #00a854"
+            : isSpot
+            ? "2px solid #f5a623"
+            : "1px solid #f0f0f0";
+
+          return (
             <div
-              className="w-14 text-right text-xs font-mono shrink-0"
-              style={{ color: s.strike > spot ? "#e53935" : "#00a854" }}
+              key={s.strike}
+              className="grid gap-1 items-stretch"
+              style={{
+                gridTemplateColumns: "72px 1fr 64px 64px 64px 64px 56px",
+                border: rowBorder,
+                borderRadius: "4px",
+              }}
             >
-              {distPct.toFixed(2)}%
+              {/* Strike */}
+              <div className="flex items-center justify-end pr-2 h-10">
+                <div className="text-right">
+                  <div className="text-xs font-mono font-bold text-gray-700">${s.strike}</div>
+                  {isResistance && <div className="text-[8px] font-bold text-danger leading-none">RES ▲</div>}
+                  {isSupport    && <div className="text-[8px] font-bold text-accent leading-none">SUP ▼</div>}
+                  {isSpot       && <div className="text-[8px] font-bold text-yellow-600 leading-none">SPOT ◆</div>}
+                </div>
+              </div>
+
+              {/* Proximity bar */}
+              <div className="flex items-center px-1 h-10">
+                <div className="w-full h-6 bg-gray-100 rounded overflow-hidden relative">
+                  <div
+                    className="h-full rounded transition-all duration-500"
+                    style={{ width: `${proxBarW}%`, background: proxBg }}
+                  />
+                  <span
+                    className="absolute inset-0 flex items-center px-2 text-[10px] font-mono"
+                    style={{ color: proxIntensity > 0.5 ? "#fff" : "#374151" }}
+                  >
+                    {distPct < 0.1 ? "← SPOT →" : `${distPct.toFixed(2)}% del spot`}
+                  </span>
+                </div>
+              </div>
+
+              {/* GEX cell */}
+              <div
+                className={COL}
+                style={{ background: bgGex, color: textOnDark(0.12 + Math.min(Math.abs(s.totalGEX)/maxGexAb,1)*0.78) }}
+              >
+                {(s.totalGEX / 1e9).toFixed(1)}B
+              </div>
+
+              {/* OI cell */}
+              <div
+                className={COL}
+                style={{ background: bgOI, color: textOnDark(0.08 + Math.min(s.totalOI/maxOI,1)*0.82) }}
+              >
+                {(s.totalOI / 1e3).toFixed(0)}K
+              </div>
+
+              {/* PCR cell */}
+              <div
+                className={COL}
+                style={{ background: bgPcr, color: textOnDark(0.12 + Math.min(Math.abs(s.weightedPCR-1)/1.5,1)*0.78) }}
+              >
+                {s.weightedPCR.toFixed(2)}
+              </div>
+
+              {/* Confluence cell */}
+              <div
+                className={COL}
+                style={{ background: bgConf, color: textOnDark(0.12 + Math.min(Math.abs(s.confluenceScore)/maxConfAb,1)*0.78) }}
+              >
+                {s.confluenceScore.toFixed(2)}
+              </div>
+
+              {/* Distance */}
+              <div
+                className="flex items-center justify-center text-[10px] font-mono font-bold h-10"
+                style={{ color: isSpot ? "#f5a623" : s.strike > spot ? "#e53935" : "#00a854" }}
+              >
+                {s.strike > spot ? "+" : s.strike < spot ? "-" : ""}{distPct.toFixed(1)}%
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
