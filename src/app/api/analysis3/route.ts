@@ -66,6 +66,7 @@ function parseChain(optData: any): { calls: any[]; puts: any[] } {
 
 export async function GET(request: NextRequest) {
   const ticker = request.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const expiration = request.nextUrl.searchParams.get("expiration") ?? undefined;
   if (!ticker) {
     return NextResponse.json({ error: "ticker is required" }, { status: 400 });
   }
@@ -85,33 +86,33 @@ export async function GET(request: NextRequest) {
       date: new Date(ts * 1000).toISOString().split("T")[0],
     }));
 
-    // Use up to 5 nearest expirations for aggregation
-    const targetExps = allExpDates.slice(0, 5);
+    // Start from the selected expiration (or from index 0 if none given)
+    const startIdx = expiration
+      ? Math.max(allExpDates.findIndex((e) => e.date === expiration), 0)
+      : 0;
 
-    // First expiration data is already in initial.options[0]
-    const firstOptData = initial.options?.[0];
-    if (!firstOptData) {
+    // Aggregate the selected expiration + next 4 (up to 5 total)
+    const targetExps = allExpDates.slice(startIdx, startIdx + 5);
+
+    if (!targetExps.length) {
       return NextResponse.json({ error: "No options chain available" }, { status: 400 });
     }
 
     const expDataList: ExpData[] = [];
 
-    // Add first expiration from the initial fetch (no extra call needed)
-    const firstChain = parseChain(firstOptData);
-    expDataList.push({
-      expiration: targetExps[0]?.date ?? allExpDates[0]?.date ?? "",
-      ...firstChain,
-    });
-
-    // Fetch remaining expirations in parallel
-    const remaining = targetExps.slice(1);
+    // If the first target expiration is the default (index 0), reuse initial.options[0]
+    // Otherwise fetch it explicitly — all targets fetch in parallel
     const results = await Promise.allSettled(
-      remaining.map(({ ts, date }) =>
-        fetchOptions(ticker, cookie, crumb, ts).then((result) => ({
+      targetExps.map(({ ts, date }, i) => {
+        if (i === 0 && startIdx === 0) {
+          // Already have this data from the initial call
+          return Promise.resolve({ date, optData: initial.options?.[0] });
+        }
+        return fetchOptions(ticker, cookie, crumb, ts).then((result) => ({
           date,
           optData: result.options?.[0],
-        }))
-      )
+        }));
+      })
     );
 
     for (const r of results) {

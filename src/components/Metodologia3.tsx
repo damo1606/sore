@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { Analysis3Result } from "@/types";
 import CandlestickChart from "@/components/CandlestickChart";
 import {
@@ -34,19 +34,24 @@ function ConfidenceBadge({ value }: { value: number }) {
 
 export default function Metodologia3() {
   const [ticker, setTicker] = useState("SPY");
+  const [expiration, setExpiration] = useState("");
+  const [allExpirations, setAllExpirations] = useState<string[]>([]);
   const [data, setData] = useState<Analysis3Result | null>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function analyze() {
-    if (!ticker.trim()) return;
+  const fetchAnalysis = useCallback(async (t: string, exp: string) => {
     setLoading(true);
     setError("");
     try {
+      const url = exp
+        ? `/api/analysis3?ticker=${t}&expiration=${exp}`
+        : `/api/analysis3?ticker=${t}`;
+
       const [analysisRes, chartRes] = await Promise.all([
-        fetch(`/api/analysis3?ticker=${ticker}`),
-        fetch(`/api/chart?ticker=${ticker}&range=3mo`),
+        fetch(url),
+        fetch(`/api/chart?ticker=${t}&range=3mo`),
       ]);
 
       const analysisJson = await analysisRes.json();
@@ -60,6 +65,29 @@ export default function Metodologia3() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  async function analyze() {
+    if (!ticker.trim()) return;
+    try {
+      const expRes = await fetch(`/api/expirations?ticker=${ticker}`);
+      const expJson = await expRes.json();
+      if (expRes.ok && expJson.expirations?.length > 0) {
+        setAllExpirations(expJson.expirations);
+        const firstExp = expiration || expJson.expirations[0];
+        setExpiration(firstExp);
+        await fetchAnalysis(ticker, firstExp);
+      } else {
+        await fetchAnalysis(ticker, expiration);
+      }
+    } catch {
+      await fetchAnalysis(ticker, expiration);
+    }
+  }
+
+  async function handleExpirationChange(exp: string) {
+    setExpiration(exp);
+    await fetchAnalysis(ticker, exp);
   }
 
   const candleLevels = data
@@ -84,6 +112,28 @@ export default function Metodologia3() {
           placeholder="TICKER"
           maxLength={10}
         />
+        {allExpirations.length > 0 && (
+          <select
+            className="bg-bg border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
+            value={expiration}
+            onChange={(e) => handleExpirationChange(e.target.value)}
+          >
+            {Object.entries(
+              allExpirations.reduce<Record<string, string[]>>((acc, exp) => {
+                const label = new Date(exp + "T12:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
+                if (!acc[label]) acc[label] = [];
+                acc[label].push(exp);
+                return acc;
+              }, {})
+            ).map(([monthLabel, dates]) => (
+              <optgroup key={monthLabel} label={monthLabel}>
+                {dates.map((exp) => (
+                  <option key={exp} value={exp}>{exp}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        )}
         <button
           onClick={analyze}
           disabled={loading}
@@ -93,8 +143,7 @@ export default function Metodologia3() {
         </button>
         {data && (
           <span className="text-xs text-muted tracking-wide">
-            Agregado de {data.expirationsUsed.length} vencimientos:{" "}
-            {data.expirationsUsed.join(" · ")}
+            Agregado desde {data.expirationsUsed[0]} · {data.expirationsUsed.length} vencimientos
           </span>
         )}
       </div>
@@ -109,7 +158,7 @@ export default function Metodologia3() {
         <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-muted">
           <div className="w-20 h-20 border-2 border-border flex items-center justify-center text-4xl">◈</div>
           <p className="text-base tracking-widest">MODELO MULTI-EXPIRACIÓN — MÁXIMA CONFIABILIDAD</p>
-          <p className="text-sm opacity-60">Agrega las 5 fechas más cercanas para calcular niveles S/R robustos</p>
+          <p className="text-sm opacity-60">Selecciona una fecha de inicio · agrega las siguientes 5 expirations</p>
           <p className="text-sm opacity-40">SPY · QQQ · NVDA · AAPL · TSLA · MSFT · AMZN · GOOGL</p>
         </div>
       )}
@@ -119,7 +168,7 @@ export default function Metodologia3() {
         <div className="flex items-center justify-center h-[70vh]">
           <div className="flex flex-col items-center gap-4">
             <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-            <p className="text-base text-muted tracking-widest">AGREGANDO {5} VENCIMIENTOS...</p>
+            <p className="text-base text-muted tracking-widest">AGREGANDO VENCIMIENTOS...</p>
           </div>
         </div>
       )}
@@ -139,8 +188,14 @@ export default function Metodologia3() {
               <div className="text-3xl font-bold text-accent">{data.ticker}</div>
             </div>
             <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">VENCIMIENTOS USADOS</div>
+              <div className="text-sm text-muted tracking-widest mb-1">VENCIMIENTOS AGREGADOS</div>
               <div className="text-3xl font-bold text-subtle">{data.expirationsUsed.length}</div>
+            </div>
+            <div className="border-l-2 border-border pl-8">
+              <div className="text-sm text-muted tracking-widest mb-1">RANGO</div>
+              <div className="text-lg font-bold text-gray-700">
+                {data.expirationsUsed[0]} → {data.expirationsUsed[data.expirationsUsed.length - 1]}
+              </div>
             </div>
           </div>
 
@@ -165,7 +220,7 @@ export default function Metodologia3() {
                 </div>
               </div>
               <div className="text-xs text-muted mt-3">
-                Z(GEX) + Z(OI) + Z(PCR) confluencia máxima por debajo del spot
+                Z(GEX) + Z(OI) + Z(PCR) — confluencia máxima por debajo del spot
               </div>
             </div>
 
@@ -188,7 +243,7 @@ export default function Metodologia3() {
                 </div>
               </div>
               <div className="text-xs text-muted mt-3">
-                Z(GEX) + Z(OI) + Z(PCR) confluencia mínima por encima del spot
+                Z(GEX) + Z(OI) + Z(PCR) — confluencia mínima por encima del spot
               </div>
             </div>
           </div>
@@ -206,7 +261,7 @@ export default function Metodologia3() {
           {/* Aggregated GEX */}
           <div className="bg-card border border-border p-6">
             <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
-              GEX AGREGADO POR STRIKE — SUMA DE {data.expirationsUsed.length} VENCIMIENTOS
+              GEX AGREGADO POR STRIKE — {data.expirationsUsed.length} VENCIMIENTOS
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.filteredStrikes} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
