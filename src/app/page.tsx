@@ -3,9 +3,16 @@
 import { useState } from "react";
 import Metodologia1 from "@/components/Metodologia1";
 import Metodologia2 from "@/components/Metodologia2";
+import Metodologia3 from "@/components/Metodologia3";
 
-const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2"] as const;
+const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3"] as const;
 type Tab = (typeof TABS)[number];
+
+const TAB_DESCRIPTIONS: Record<Tab, string> = {
+  "METODOLOGÍA 1": "GEX · VANNA · DEALER FLOW",
+  "METODOLOGÍA 2": "Z-SCORE GEX + PCR",
+  "METODOLOGÍA 3": "MULTI-EXPIRATION CONFLUENCE",
+};
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("METODOLOGÍA 1");
@@ -26,13 +33,16 @@ export default function Home() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-8 py-3 text-sm font-bold tracking-widest border-b-2 transition-colors ${
+            className={`px-6 py-3 text-sm font-bold tracking-widest border-b-2 transition-colors flex flex-col items-start ${
               activeTab === tab
                 ? "border-accent text-accent"
                 : "border-transparent text-muted hover:text-gray-900"
             }`}
           >
-            {tab}
+            <span>{tab}</span>
+            <span className="text-[9px] font-normal tracking-wider opacity-60 hidden sm:block">
+              {TAB_DESCRIPTIONS[tab]}
+            </span>
           </button>
         ))}
       </div>
@@ -40,6 +50,7 @@ export default function Home() {
       {/* Content */}
       {activeTab === "METODOLOGÍA 1" && <Metodologia1 />}
       {activeTab === "METODOLOGÍA 2" && <Metodologia2 />}
+      {activeTab === "METODOLOGÍA 3" && <Metodologia3 />}
     </div>
   );
 }

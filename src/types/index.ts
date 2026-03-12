@@ -39,6 +39,29 @@ export interface Analysis2Result {
   filteredStrikes: StrikeData[];
 }
 
+export interface AggStrikeData {
+  strike: number;
+  totalGEX: number;
+  totalOI: number;
+  weightedPCR: number;
+  expirationCount: number;
+  zGex: number;
+  zOI: number;
+  zPcr: number;
+  confluenceScore: number;
+}
+
+export interface Analysis3Result {
+  ticker: string;
+  spot: number;
+  expirationsUsed: string[];
+  support: number;
+  resistance: number;
+  supportConfidence: number;
+  resistanceConfidence: number;
+  filteredStrikes: AggStrikeData[];
+}
+
 export interface AnalysisResult {
   ticker: string;
   spot: number;
