@@ -70,10 +70,16 @@ export async function GET(request: NextRequest) {
     let selectedExpiration = availableExpirations[0];
 
     if (expiration && expiration !== selectedExpiration) {
-      const ts = Math.floor(new Date(expiration + "T12:00:00Z").getTime() / 1000);
-      const specific = await fetchOptions(ticker, cookie, crumb, ts);
-      optData = specific.options?.[0];
-      selectedExpiration = expiration;
+      // Use the exact timestamp from Yahoo's expirationDates list to avoid
+      // mismatches (Yahoo uses midnight UTC, not noon UTC)
+      const exactTs = (initial.expirationDates as number[]).find(
+        (ts) => new Date(ts * 1000).toISOString().split("T")[0] === expiration
+      );
+      if (exactTs) {
+        const specific = await fetchOptions(ticker, cookie, crumb, exactTs);
+        optData = specific.options?.[0];
+        selectedExpiration = expiration;
+      }
     }
 
     if (!optData) {
