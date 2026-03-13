@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { gammaBS } from "@/lib/blackscholes";
+import { gammaBS, deltaBS } from "@/lib/blackscholes";
 
 const HEADERS = {
   "User-Agent":
@@ -18,6 +18,7 @@ export interface Heatmap2DCell {
   expiration: string;
   gex: number;
   oi: number;
+  skew: number;       // IV_put(K) − IV_call(K) at same strike
 }
 
 export interface Heatmap2DData {
@@ -27,6 +28,7 @@ export interface Heatmap2DData {
   expirations: string[];
   allExpirations: string[];
   cells: Heatmap2DCell[];
+  skew25d: Record<string, number>;  // 25Δ skew per expiration date
   support: number;
   resistance: number;
 }
@@ -62,43 +64,67 @@ function computeCells(
   spot: number,
   lower: number,
   upper: number
-): Heatmap2DCell[] {
+): { cells: Heatmap2DCell[]; skew25d: number } {
   const today = new Date();
   const expDate = new Date(expiration + "T00:00:00");
   const T = Math.max((expDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000), 0.001);
 
   const calls: any[] = optData?.calls ?? [];
-  const puts: any[] = optData?.puts ?? [];
+  const puts: any[]  = optData?.puts  ?? [];
 
   const strikeSet = new Set<number>([
     ...calls.map((c: any) => c.strike),
-    ...puts.map((p: any) => p.strike),
+    ...puts.map((p: any)  => p.strike),
   ]);
 
   const cells: Heatmap2DCell[] = [];
 
+  // For 25Δ skew: track closest call to Δ=+0.25 and put to Δ=−0.25
+  let best25Call: { iv: number; dist: number } | null = null;
+  let best25Put:  { iv: number; dist: number } | null = null;
+
   for (const strike of Array.from(strikeSet)) {
-    if (strike < lower || strike > upper) continue;
     const call = calls.find((c: any) => c.strike === strike);
-    const put = puts.find((p: any) => p.strike === strike);
+    const put  = puts.find((p: any)  => p.strike === strike);
 
     const callOI = call?.openInterest ?? 0;
-    const putOI = put?.openInterest ?? 0;
+    const putOI  = put?.openInterest  ?? 0;
+    const callIV = call?.impliedVolatility ?? 0;
+    const putIV  = put?.impliedVolatility  ?? 0;
+
+    // 25Δ tracking (all strikes, not only ±10%)
+    if (callIV > 0) {
+      const dCall = deltaBS(spot, strike, T, RISK_FREE_RATE, callIV, true);
+      const dist  = Math.abs(dCall - 0.25);
+      if (!best25Call || dist < best25Call.dist) best25Call = { iv: callIV, dist };
+    }
+    if (putIV > 0) {
+      const dPut = deltaBS(spot, strike, T, RISK_FREE_RATE, putIV, false);
+      const dist = Math.abs(dPut - (-0.25));
+      if (!best25Put || dist < best25Put.dist) best25Put = { iv: putIV, dist };
+    }
+
+    // Only include in grid if within ±10% and enough OI
+    if (strike < lower || strike > upper) continue;
     const totalOI = callOI + putOI;
     if (totalOI < 5) continue;
 
-    const callIV = call?.impliedVolatility ?? 0;
-    const putIV = put?.impliedVolatility ?? 0;
-
     const gCall = gammaBS(spot, strike, T, RISK_FREE_RATE, callIV);
-    const gPut = gammaBS(spot, strike, T, RISK_FREE_RATE, putIV);
-    const gex = callOI * gCall * spot * spot * CONTRACT_SIZE
-              - putOI * gPut  * spot * spot * CONTRACT_SIZE;
+    const gPut  = gammaBS(spot, strike, T, RISK_FREE_RATE, putIV);
+    const gex   = callOI * gCall * spot * spot * CONTRACT_SIZE
+                - putOI * gPut  * spot * spot * CONTRACT_SIZE;
 
-    cells.push({ strike, expiration, gex, oi: totalOI });
+    // Per-strike skew: IV_put − IV_call at same strike
+    const skew = putIV > 0 && callIV > 0 ? putIV - callIV : 0;
+
+    cells.push({ strike, expiration, gex, oi: totalOI, skew });
   }
 
-  return cells;
+  const skew25d = (best25Put && best25Call)
+    ? best25Put.iv - best25Call.iv
+    : 0;
+
+  return { cells, skew25d };
 }
 
 export async function GET(request: NextRequest) {
@@ -152,10 +178,12 @@ export async function GET(request: NextRequest) {
 
     // Build all cells
     const allCells: Heatmap2DCell[] = [];
+    const skew25dMap: Record<string, number> = {};
     for (const { date, optData } of results) {
       if (!optData) continue;
-      const cells = computeCells(date, optData, spot, lower, upper);
+      const { cells, skew25d } = computeCells(date, optData, spot, lower, upper);
       allCells.push(...cells);
+      skew25dMap[date] = skew25d;
     }
 
     // Derive strike list and expiration list from actual data
@@ -189,6 +217,7 @@ export async function GET(request: NextRequest) {
       expirations,
       allExpirations,
       cells: allCells,
+      skew25d: skew25dMap,
       support,
       resistance,
     };
