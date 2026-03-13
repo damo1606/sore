@@ -12,7 +12,6 @@ const HEADERS = {
 const RISK_FREE_RATE = 0.043;
 const CONTRACT_SIZE = 100;
 const MAX_DISTANCE = 0.10;
-const MAX_EXPIRATIONS = 8;
 
 export interface Heatmap2DCell {
   strike: number;
@@ -26,6 +25,7 @@ export interface Heatmap2DData {
   spot: number;
   strikes: number[];
   expirations: string[];
+  allExpirations: string[];
   cells: Heatmap2DCell[];
   support: number;
   resistance: number;
@@ -102,7 +102,8 @@ function computeCells(
 }
 
 export async function GET(request: NextRequest) {
-  const ticker = request.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const ticker     = request.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const upTo       = request.nextUrl.searchParams.get("upTo") ?? "";   // optional end date
   if (!ticker) return NextResponse.json({ error: "ticker is required" }, { status: 400 });
 
   try {
@@ -118,8 +119,15 @@ export async function GET(request: NextRequest) {
       date: new Date(ts * 1000).toISOString().split("T")[0],
     }));
 
-    // Take first MAX_EXPIRATIONS
-    const selectedExps = allExpDates.slice(0, MAX_EXPIRATIONS);
+    const allExpirations = allExpDates.map((e) => e.date);
+
+    // Filter up to selected date, default to first 8
+    let selectedExps = upTo
+      ? allExpDates.filter((e) => e.date <= upTo)
+      : allExpDates.slice(0, 8);
+
+    // Always include at least 1
+    if (selectedExps.length === 0) selectedExps = allExpDates.slice(0, 1);
 
     const lower = spot * (1 - MAX_DISTANCE);
     const upper = spot * (1 + MAX_DISTANCE);
@@ -179,6 +187,7 @@ export async function GET(request: NextRequest) {
       spot,
       strikes,
       expirations,
+      allExpirations,
       cells: allCells,
       support,
       resistance,
