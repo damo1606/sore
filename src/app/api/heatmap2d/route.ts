@@ -77,7 +77,7 @@ function computeCells(
 
   const cells: Heatmap2DCell[] = [];
 
-  for (const strike of strikeSet) {
+  for (const strike of Array.from(strikeSet)) {
     if (strike < lower || strike > upper) continue;
     const call = calls.find((c: any) => c.strike === strike);
     const put = puts.find((p: any) => p.strike === strike);
