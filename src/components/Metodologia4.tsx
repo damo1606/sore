@@ -72,9 +72,19 @@ export default function Metodologia4() {
               }, {})
             ).map(([monthLabel, dates]) => (
               <optgroup key={monthLabel} label={monthLabel}>
-                {dates.map((exp) => (
-                  <option key={exp} value={exp}>{exp}</option>
-                ))}
+                {dates.map((exp) => {
+                  const d   = new Date(exp + "T12:00:00");
+                  const dow = d.getDay();
+                  const day = d.getDate();
+                  const mon = d.getMonth();
+                  const isThirdFri = dow === 5 && day >= 15 && day <= 21;
+                  const isQuart    = isThirdFri && [2, 5, 8, 11].includes(mon);
+                  const isMon      = isThirdFri && !isQuart;
+                  const suffix = isQuart ? " ★ TRIMESTRAL" : isMon ? " · MENSUAL" : "";
+                  return (
+                    <option key={exp} value={exp}>{exp}{suffix}</option>
+                  );
+                })}
               </optgroup>
             ))}
           </select>

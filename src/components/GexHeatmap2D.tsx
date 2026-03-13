@@ -2,6 +2,56 @@
 
 import type { Heatmap2DData } from "@/app/api/heatmap2d/route";
 
+// ─── Expiration type detection ────────────────────────────────────────────────
+// Monthly = 3rd Friday of any month (day 15–21, Friday)
+// Quarterly = 3rd Friday of Mar/Jun/Sep/Dec (quad witching)
+// Weekly = everything else
+
+function getExpType(dateStr: string): "quarterly" | "monthly" | "weekly" {
+  const d = new Date(dateStr + "T12:00:00");
+  const day   = d.getDate();
+  const dow   = d.getDay(); // 5 = Friday
+  const month = d.getMonth(); // 0-indexed
+
+  const isThirdFriday = dow === 5 && day >= 15 && day <= 21;
+  if (!isThirdFriday) return "weekly";
+
+  const isQuarterEnd = [2, 5, 8, 11].includes(month); // Mar Jun Sep Dec
+  return isQuarterEnd ? "quarterly" : "monthly";
+}
+
+const EXP_STYLE = {
+  quarterly: {
+    headerBg:    "#1a237e",
+    headerColor: "#fff",
+    colBg:       "rgba(26,35,126,0.06)",
+    badge:       "TRIM",
+    badgeColor:  "#fff",
+    badgeBg:     "#1a237e",
+    borderTop:   "3px solid #1a237e",
+  },
+  monthly: {
+    headerBg:    "#0d47a1",
+    headerColor: "#fff",
+    colBg:       "rgba(13,71,161,0.04)",
+    badge:       "MEN",
+    badgeColor:  "#fff",
+    badgeBg:     "#1565c0",
+    borderTop:   "3px solid #1565c0",
+  },
+  weekly: {
+    headerBg:    "transparent",
+    headerColor: "#9e9e9e",
+    colBg:       "transparent",
+    badge:       "",
+    badgeColor:  "",
+    badgeBg:     "",
+    borderTop:   "none",
+  },
+};
+
+// ─── Color helpers ────────────────────────────────────────────────────────────
+
 function gexColor(gex: number, maxAbs: number): string {
   const t = Math.min(Math.abs(gex) / maxAbs, 1);
   const alpha = (0.12 + t * 0.82).toFixed(2);
@@ -12,8 +62,7 @@ function gexColor(gex: number, maxAbs: number): string {
 
 function textColor(gex: number, maxAbs: number): string {
   const t = Math.min(Math.abs(gex) / maxAbs, 1);
-  const alpha = 0.12 + t * 0.82;
-  return alpha > 0.5 ? "#fff" : "#374151";
+  return 0.12 + t * 0.82 > 0.5 ? "#fff" : "#374151";
 }
 
 function fmtGex(v: number): string {
@@ -24,53 +73,58 @@ function fmtGex(v: number): string {
 }
 
 function fmtOI(v: number): string {
-  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
-  return String(v);
+  return v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : String(v);
 }
 
 function shortExp(exp: string): string {
-  // "2025-04-17" → "Apr 17"
   const d = new Date(exp + "T12:00:00");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function GexHeatmap2D({ data }: { data: Heatmap2DData }) {
   const { strikes, expirations, cells, spot, support, resistance } = data;
 
-  // Build lookup map: cells[strike][expiration]
   const cellMap = new Map<string, { gex: number; oi: number }>();
-  const maxOIPerExp = new Map<string, number>();
-
   for (const c of cells) {
     cellMap.set(`${c.strike}_${c.expiration}`, { gex: c.gex, oi: c.oi });
-    const cur = maxOIPerExp.get(c.expiration) ?? 0;
-    if (c.oi > cur) maxOIPerExp.set(c.expiration, c.oi);
   }
 
   const maxAbsGex = Math.max(...cells.map((c) => Math.abs(c.gex)), 1);
-  const maxOI = Math.max(...cells.map((c) => c.oi), 1);
+  const maxOI     = Math.max(...cells.map((c) => c.oi), 1);
 
-  const CELL_W = 80;
-  const CELL_H = 36;
+  const CELL_W  = 80;
+  const CELL_H  = 36;
   const LABEL_W = 72;
-  const HDR_H = 44;
+  const HDR_H   = 56;
+
+  const expTypes = expirations.map(getExpType);
 
   return (
     <div className="overflow-auto">
+
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-5 mb-4 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-4 h-4 rounded" style={{ background: "rgba(0,168,84,0.82)" }} />
-          GEX positivo — soporte (dealers largo gamma)
+          GEX positivo — soporte
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-4 h-4 rounded" style={{ background: "rgba(229,57,53,0.82)" }} />
-          GEX negativo — resistencia (dealers corto gamma)
+          GEX negativo — resistencia
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-4 rounded" style={{ background: "#1a237e" }} />
+          Trimestral (quad witching)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-4 rounded" style={{ background: "#1565c0" }} />
+          Mensual (3er viernes)
         </span>
         <span className="flex items-center gap-1.5 ml-auto">
-          <span className="inline-block w-10 h-3 rounded" style={{ background: "rgba(21,101,192,0.35)" }} />
           <span className="inline-block w-6 h-3 rounded" style={{ background: "rgba(21,101,192,0.85)" }} />
-          Barra azul = OI (ancho = magnitud)
+          Barra azul = OI
         </span>
       </div>
 
@@ -88,18 +142,57 @@ export default function GexHeatmap2D({ data }: { data: Heatmap2DData }) {
         >
           STRIKE
         </div>
-        {expirations.map((exp) => (
-          <div
-            key={exp}
-            className="flex flex-col items-center justify-end pb-1 text-center"
-            style={{ height: HDR_H }}
-          >
-            <div className="text-[9px] font-bold tracking-widest text-muted leading-tight">
-              {shortExp(exp)}
+
+        {expirations.map((exp, i) => {
+          const style = EXP_STYLE[expTypes[i]];
+          return (
+            <div
+              key={exp}
+              className="flex flex-col items-center justify-end pb-1 text-center"
+              style={{
+                height: HDR_H,
+                background: style.headerBg !== "transparent" ? style.headerBg : undefined,
+                borderRadius: "4px 4px 0 0",
+                borderTop: style.borderTop,
+              }}
+            >
+              {style.badge && (
+                <div
+                  style={{
+                    fontSize: 7,
+                    fontWeight: 900,
+                    letterSpacing: "0.1em",
+                    color: style.badgeColor,
+                    lineHeight: 1,
+                    marginBottom: 2,
+                  }}
+                >
+                  {style.badge}
+                </div>
+              )}
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color: style.headerColor,
+                  lineHeight: 1,
+                }}
+              >
+                {shortExp(exp)}
+              </div>
+              <div
+                style={{
+                  fontSize: 8,
+                  color: style.headerColor,
+                  opacity: 0.7,
+                  lineHeight: 1.2,
+                }}
+              >
+                {exp.slice(0, 7)}
+              </div>
             </div>
-            <div className="text-[8px] text-muted opacity-60 leading-tight">{exp.slice(0, 7)}</div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Data rows */}
         {strikes.map((strike) => {
@@ -107,12 +200,9 @@ export default function GexHeatmap2D({ data }: { data: Heatmap2DData }) {
           const isResistance = strike === resistance;
           const isSpot       = Math.abs(strike - spot) < 0.5;
 
-          const rowBorderColor = isResistance
-            ? "#e53935"
-            : isSupport
-            ? "#00a854"
-            : isSpot
-            ? "#f5a623"
+          const rowBorderColor = isResistance ? "#e53935"
+            : isSupport ? "#00a854"
+            : isSpot    ? "#f5a623"
             : "transparent";
 
           return (
@@ -134,25 +224,31 @@ export default function GexHeatmap2D({ data }: { data: Heatmap2DData }) {
               </div>
 
               {/* Cells per expiration */}
-              {expirations.map((exp) => {
-                const cell = cellMap.get(`${strike}_${exp}`);
+              {expirations.map((exp, i) => {
+                const colBg = EXP_STYLE[expTypes[i]].colBg;
+                const cell  = cellMap.get(`${strike}_${exp}`);
+
                 if (!cell) {
                   return (
                     <div
                       key={`${strike}_${exp}`}
-                      style={{ height: CELL_H, background: "#f5f5f5", borderRadius: 2 }}
+                      style={{
+                        height: CELL_H,
+                        background: colBg || "#f5f5f5",
+                        borderRadius: 2,
+                      }}
                     />
                   );
                 }
 
-                const bg = gexColor(cell.gex, maxAbsGex);
-                const fg = textColor(cell.gex, maxAbsGex);
+                const bg    = gexColor(cell.gex, maxAbsGex);
+                const fg    = textColor(cell.gex, maxAbsGex);
                 const oiPct = Math.max(6, (cell.oi / maxOI) * 100);
 
                 return (
                   <div
                     key={`${strike}_${exp}`}
-                    title={`Strike $${strike} | ${exp}\nGEX: ${fmtGex(cell.gex)}\nOI: ${fmtOI(cell.oi)}`}
+                    title={`Strike $${strike} | ${exp} (${expTypes[i]})\nGEX: ${fmtGex(cell.gex)}\nOI: ${fmtOI(cell.oi)}`}
                     style={{
                       height: CELL_H,
                       background: bg,
@@ -164,40 +260,15 @@ export default function GexHeatmap2D({ data }: { data: Heatmap2DData }) {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 1,
+                      outline: expTypes[i] !== "weekly" ? `2px solid ${EXP_STYLE[expTypes[i]].badgeBg}` : undefined,
+                      outlineOffset: "-1px",
                     }}
                   >
-                    {/* GEX label */}
-                    <div
-                      style={{
-                        color: fg,
-                        fontSize: 9,
-                        fontFamily: "monospace",
-                        fontWeight: 700,
-                        lineHeight: 1,
-                        zIndex: 1,
-                      }}
-                    >
+                    <div style={{ color: fg, fontSize: 9, fontFamily: "monospace", fontWeight: 700, lineHeight: 1 }}>
                       {fmtGex(cell.gex)}
                     </div>
-
-                    {/* OI bar */}
-                    <div
-                      style={{
-                        width: "80%",
-                        height: 4,
-                        background: "rgba(255,255,255,0.25)",
-                        borderRadius: 2,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${oiPct}%`,
-                          height: "100%",
-                          background: "rgba(21,101,192,0.75)",
-                          borderRadius: 2,
-                        }}
-                      />
+                    <div style={{ width: "80%", height: 4, background: "rgba(255,255,255,0.25)", borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ width: `${oiPct}%`, height: "100%", background: "rgba(21,101,192,0.75)", borderRadius: 2 }} />
                     </div>
                   </div>
                 );
@@ -207,7 +278,6 @@ export default function GexHeatmap2D({ data }: { data: Heatmap2DData }) {
         })}
       </div>
 
-      {/* Bottom axis label */}
       <div className="mt-3 text-[9px] text-muted text-center tracking-widest">
         FECHAS DE VENCIMIENTO →
       </div>
