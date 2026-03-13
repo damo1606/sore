@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type { Heatmap2DData } from "@/app/api/heatmap2d/route";
 import GexHeatmap2D from "@/components/GexHeatmap2D";
+import SkewPanel from "@/components/SkewPanel";
 
 export default function Metodologia4() {
   const [ticker, setTicker]           = useState("SPY");
@@ -164,9 +165,20 @@ export default function Metodologia4() {
               MAPA DE CALOR GEX — STRIKE × VENCIMIENTO
             </div>
             <div className="text-xs text-muted mb-5">
-              Color = GEX por celda · Intensidad = magnitud · Barra azul = Open Interest
+              Color = GEX · Barra azul = OI · Barra naranja/azul = Skew IV
             </div>
             <GexHeatmap2D data={data} />
+          </div>
+
+          {/* Skew Panel */}
+          <div className="bg-card border border-border p-6">
+            <div className="text-sm text-muted tracking-widest mb-1 font-semibold">
+              ANÁLISIS DE SKEW — PUTS / CALLS
+            </div>
+            <div className="text-xs text-muted mb-5">
+              Dónde están pagando más por protección · Estructura de plazos del 25Δ skew
+            </div>
+            <SkewPanel data={data} />
           </div>
 
         </main>
