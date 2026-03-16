@@ -21,6 +21,27 @@ const TAB_DESCRIPTIONS: Record<Tab, string> = {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("METODOLOGÍA 1");
   const [ticker, setTicker] = useState("SPY");
+  const [expiration, setExpiration] = useState("");
+  const [expirations, setExpirations] = useState<string[]>([]);
+  const [analyzeKey, setAnalyzeKey] = useState(0);
+  const [loadingExps, setLoadingExps] = useState(false);
+
+  async function handleAnalyze() {
+    if (!ticker.trim()) return;
+    setLoadingExps(true);
+    try {
+      const res = await fetch(`/api/expirations?ticker=${ticker}`);
+      const json = await res.json();
+      if (res.ok && json.expirations?.length > 0) {
+        setExpirations(json.expirations);
+        if (!expiration || !json.expirations.includes(expiration)) {
+          setExpiration(json.expirations[0]);
+        }
+      }
+    } catch {}
+    setLoadingExps(false);
+    setAnalyzeKey((k) => k + 1);
+  }
 
   return (
     <div className="min-h-screen bg-bg text-gray-900">
@@ -31,6 +52,65 @@ export default function Home() {
           INSTITUTIONAL OPTIONS FLOW
         </span>
       </header>
+
+      {/* Global Controls — ticker + expiration together */}
+      <div className="border-b-2 border-accent px-6 py-3 flex items-center gap-3 bg-surface flex-wrap sticky top-[73px] z-40 shadow-sm">
+        <input
+          className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
+          value={ticker}
+          onChange={(e) => setTicker(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+          placeholder="TICKER"
+          maxLength={10}
+        />
+
+        {expirations.length > 0 && (
+          <select
+            className="bg-bg border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
+            value={expiration}
+            onChange={(e) => setExpiration(e.target.value)}
+          >
+            {Object.entries(
+              expirations.reduce<Record<string, string[]>>((acc, exp) => {
+                const label = new Date(exp + "T12:00:00").toLocaleString("en-US", {
+                  month: "long", year: "numeric",
+                });
+                if (!acc[label]) acc[label] = [];
+                acc[label].push(exp);
+                return acc;
+              }, {})
+            ).map(([monthLabel, dates]) => (
+              <optgroup key={monthLabel} label={monthLabel}>
+                {dates.map((exp) => {
+                  const d = new Date(exp + "T12:00:00");
+                  const dow = d.getDay();
+                  const day = d.getDate();
+                  const mon = d.getMonth();
+                  const isThirdFri = dow === 5 && day >= 15 && day <= 21;
+                  const isQuart = isThirdFri && [2, 5, 8, 11].includes(mon);
+                  const isMon = isThirdFri && !isQuart;
+                  const suffix = isQuart ? " ★ TRIMESTRAL" : isMon ? " · MENSUAL" : "";
+                  return <option key={exp} value={exp}>{exp}{suffix}</option>;
+                })}
+              </optgroup>
+            ))}
+          </select>
+        )}
+
+        <button
+          onClick={handleAnalyze}
+          disabled={loadingExps}
+          className="bg-accent text-white px-6 py-2 text-base font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
+        >
+          {loadingExps ? "..." : "ANALYZE"}
+        </button>
+
+        {analyzeKey > 0 && (
+          <span className="text-xs text-muted">
+            {ticker}{expiration ? ` · ${expiration}` : ""} · {expirations.length} vencimientos
+          </span>
+        )}
+      </div>
 
       {/* Tabs */}
       <div className="border-b border-border px-6 flex gap-0 bg-bg">
@@ -52,12 +132,22 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Content */}
-      {activeTab === "METODOLOGÍA 1" && <Metodologia1 ticker={ticker} onTickerChange={setTicker} />}
-      {activeTab === "METODOLOGÍA 2" && <Metodologia2 ticker={ticker} onTickerChange={setTicker} />}
-      {activeTab === "METODOLOGÍA 3" && <Metodologia3 ticker={ticker} onTickerChange={setTicker} />}
-      {activeTab === "METODOLOGÍA 4" && <Metodologia4 ticker={ticker} onTickerChange={setTicker} />}
-      {activeTab === "METODOLOGÍA 5" && <Metodologia5 ticker={ticker} onTickerChange={setTicker} />}
+      {/* Content — always mounted to preserve data state when switching tabs */}
+      <div className={activeTab === "METODOLOGÍA 1" ? "" : "hidden"}>
+        <Metodologia1 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+      </div>
+      <div className={activeTab === "METODOLOGÍA 2" ? "" : "hidden"}>
+        <Metodologia2 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+      </div>
+      <div className={activeTab === "METODOLOGÍA 3" ? "" : "hidden"}>
+        <Metodologia3 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+      </div>
+      <div className={activeTab === "METODOLOGÍA 4" ? "" : "hidden"}>
+        <Metodologia4 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+      </div>
+      <div className={activeTab === "METODOLOGÍA 5" ? "" : "hidden"}>
+        <Metodologia5 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+      </div>
     </div>
   );
 }

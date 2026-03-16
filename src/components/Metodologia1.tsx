@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { AnalysisResult } from "@/types";
 import LevelsPanel from "@/components/LevelsPanel";
 import GexChart from "@/components/GexChart";
@@ -16,9 +16,15 @@ interface Candle {
   close: number;
 }
 
-export default function Metodologia1({ ticker, onTickerChange }: { ticker: string; onTickerChange: (t: string) => void }) {
-  const [expiration, setExpiration] = useState("");
-  const [allExpirations, setAllExpirations] = useState<string[]>([]);
+export default function Metodologia1({
+  ticker,
+  expiration,
+  analyzeKey,
+}: {
+  ticker: string;
+  expiration: string;
+  analyzeKey: number;
+}) {
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,9 +47,7 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
       if (!analysisRes.ok) throw new Error(analysisJson.error ?? "Error");
 
       const chartJson = await chartRes.json();
-
       setData(analysisJson);
-      setExpiration(analysisJson.expiration);
       setCandles(chartJson.candles ?? []);
     } catch (e: any) {
       setError(e.message);
@@ -52,86 +56,22 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
     }
   }, []);
 
-  async function analyze() {
-    if (!ticker.trim()) return;
-
-    try {
-      const expRes = await fetch(`/api/expirations?ticker=${ticker}`);
-      const expJson = await expRes.json();
-      if (expRes.ok && expJson.expirations?.length > 0) {
-        setAllExpirations(expJson.expirations);
-        const firstExp = expiration || expJson.expirations[0];
-        setExpiration(firstExp);
-        await fetchAnalysis(ticker, firstExp);
-      } else {
-        await fetchAnalysis(ticker, expiration);
-      }
-    } catch {
-      await fetchAnalysis(ticker, expiration);
+  useEffect(() => {
+    if (analyzeKey > 0 && ticker) {
+      fetchAnalysis(ticker, expiration);
     }
-  }
-
-  async function handleExpirationChange(exp: string) {
-    setExpiration(exp);
-    await fetchAnalysis(ticker, exp);
-  }
+  }, [analyzeKey]);
 
   const isPositiveGamma = data ? data.spot > data.levels.gammaFlip : null;
 
   return (
     <div>
-      {/* Controls */}
-      <div className="border-b border-border px-6 py-4 flex items-center gap-3 bg-surface flex-wrap">
-        <input
-          className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
-          value={ticker}
-          onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === "Enter" && analyze()}
-          placeholder="TICKER"
-          maxLength={10}
-        />
-        {allExpirations.length > 0 && (
-          <select
-            className="bg-bg border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
-            value={expiration}
-            onChange={(e) => handleExpirationChange(e.target.value)}
-          >
-            {Object.entries(
-              allExpirations.reduce<Record<string, string[]>>((acc, exp) => {
-                const label = new Date(exp + "T12:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
-                if (!acc[label]) acc[label] = [];
-                acc[label].push(exp);
-                return acc;
-              }, {})
-            ).map(([monthLabel, dates]) => (
-              <optgroup key={monthLabel} label={monthLabel}>
-                {dates.map((exp) => (
-                  <option key={exp} value={exp}>{exp}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        )}
-        <button
-          onClick={analyze}
-          disabled={loading}
-          className="bg-accent text-white px-6 py-2 text-base font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
-        >
-          {loading ? "..." : "ANALYZE"}
-        </button>
-        {allExpirations.length > 0 && (
-          <span className="text-xs text-muted">{allExpirations.length} expirations available</span>
-        )}
-      </div>
-
-      {/* Error */}
       {error && (
         <div className="mx-6 mt-4 p-4 border border-danger text-danger text-sm tracking-wide">
           ✕ {error}
         </div>
       )}
 
-      {/* Empty state */}
       {!data && !loading && !error && (
         <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-muted">
           <div className="w-20 h-20 border-2 border-border flex items-center justify-center text-4xl">◈</div>
@@ -140,7 +80,6 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center h-[70vh]">
           <div className="flex flex-col items-center gap-4">
@@ -150,10 +89,8 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
         </div>
       )}
 
-      {/* Dashboard */}
       {data && !loading && (
         <main className="p-6 space-y-6">
-          {/* Spot + Gamma Regime */}
           <div className="flex flex-wrap items-end gap-8">
             <div>
               <div className="text-sm text-muted tracking-widest mb-1">SPOT PRICE</div>
@@ -175,7 +112,6 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
             </div>
           </div>
 
-          {/* Institutional Pressure + Put/Call Ratio */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="bg-card border border-border p-6">
               <div className="text-sm text-muted tracking-widest mb-3 font-semibold">INSTITUTIONAL PRESSURE</div>
@@ -224,10 +160,8 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
             </div>
           </div>
 
-          {/* Key Levels */}
           <LevelsPanel levels={data.levels} spot={data.spot} />
 
-          {/* Candlestick Chart */}
           <div className="bg-card border border-border p-6">
             <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
               PRICE ACTION — JAPANESE CANDLESTICKS + INSTITUTIONAL LEVELS (3 MONTHS)
@@ -235,7 +169,6 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
             <CandlestickChart candles={candles} levels={data.levels} spot={data.spot} />
           </div>
 
-          {/* GEX Profile */}
           <div className="bg-card border border-border p-6">
             <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
               GAMMA EXPOSURE PROFILE — GEX BY STRIKE
@@ -243,7 +176,6 @@ export default function Metodologia1({ ticker, onTickerChange }: { ticker: strin
             <GexChart data={data.gexProfile} spot={data.spot} levels={data.levels} />
           </div>
 
-          {/* Dealer Flow + Vanna */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-card border border-border p-6">
               <div className="text-sm text-muted tracking-widest mb-5 font-semibold">DEALER HEDGING FLOW MODEL</div>

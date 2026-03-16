@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Analysis5Result, SRLevel, SignalComponent, ScoredStrike } from "@/lib/gex5";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -10,7 +10,7 @@ import {
 const fmtNotional = (v: number) =>
   v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
 
-// ─── 5-line summary grid (same pattern as M3) ────────────────────────────────
+// ─── 5-line summary grid ──────────────────────────────────────────────────────
 function ChartSummary({ lines }: { lines: string[] }) {
   return (
     <div className="mt-5 border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-5 gap-2">
@@ -101,11 +101,13 @@ function buildChartSummary(data: Analysis5Result): string[] {
     ? (data.scoredStrikes.reduce((a, s) => a + s.totalScore, 0) / total * 100).toFixed(0)
     : "0";
 
-  const mpStrike = data.scoredStrikes.reduce(
-    (best, s) =>
-      Math.abs(s.strike - data.maxPain) < Math.abs(best.strike - data.maxPain) ? s : best,
-    data.scoredStrikes[0]
-  );
+  const mpStrike = total > 0
+    ? data.scoredStrikes.reduce(
+        (best, s) =>
+          Math.abs(s.strike - data.maxPain) < Math.abs(best.strike - data.maxPain) ? s : best,
+        data.scoredStrikes[0]
+      )
+    : null;
 
   return [
     `Se evaluaron ${total} strikes dentro del ±12% del spot. El score de calidad combina 3 dimensiones: GEX Wall (30%), alineación con Max Pain (35%) y Notional OI con convergencia multi-expiración (35%). Solo los strikes que superan los 3 filtros se consideran niveles operables.`,
@@ -229,9 +231,15 @@ function SignalRow({ signal }: { signal: SignalComponent }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Metodologia5({ ticker, onTickerChange }: { ticker: string; onTickerChange: (t: string) => void }) {
-  const [upTo, setUpTo] = useState("");
-  const [allExpirations, setAllExpirations] = useState<string[]>([]);
+export default function Metodologia5({
+  ticker,
+  expiration,
+  analyzeKey,
+}: {
+  ticker: string;
+  expiration: string;
+  analyzeKey: number;
+}) {
   const [data, setData] = useState<Analysis5Result | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -245,10 +253,6 @@ export default function Metodologia5({ ticker, onTickerChange }: { ticker: strin
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error");
       setData(json);
-      if (json.allExpirations?.length > 0) {
-        setAllExpirations(json.allExpirations);
-        if (!exp) setUpTo(json.allExpirations[7] ?? json.allExpirations.at(-1));
-      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -256,15 +260,11 @@ export default function Metodologia5({ ticker, onTickerChange }: { ticker: strin
     }
   }, []);
 
-  async function analyze() {
-    if (!ticker.trim()) return;
-    await fetchAnalysis(ticker, upTo);
-  }
-
-  async function handleExpirationChange(exp: string) {
-    setUpTo(exp);
-    await fetchAnalysis(ticker, exp);
-  }
+  useEffect(() => {
+    if (analyzeKey > 0 && ticker) {
+      fetchAnalysis(ticker, expiration);
+    }
+  }, [analyzeKey]);
 
   const verdictColor =
     data?.verdict === "ALCISTA" ? "text-accent" :
@@ -276,66 +276,6 @@ export default function Metodologia5({ ticker, onTickerChange }: { ticker: strin
 
   return (
     <div>
-      {/* Controls */}
-      <div className="border-b border-border px-6 py-4 flex items-center gap-3 bg-surface flex-wrap">
-        <input
-          className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
-          value={ticker}
-          onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === "Enter" && analyze()}
-          placeholder="TICKER"
-          maxLength={10}
-        />
-
-        {allExpirations.length > 0 && (
-          <select
-            className="bg-bg border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
-            value={upTo}
-            onChange={(e) => handleExpirationChange(e.target.value)}
-          >
-            {Object.entries(
-              allExpirations.reduce<Record<string, string[]>>((acc, exp) => {
-                const label = new Date(exp + "T12:00:00").toLocaleString("en-US", {
-                  month: "long", year: "numeric",
-                });
-                if (!acc[label]) acc[label] = [];
-                acc[label].push(exp);
-                return acc;
-              }, {})
-            ).map(([monthLabel, dates]) => (
-              <optgroup key={monthLabel} label={monthLabel}>
-                {dates.map((exp) => {
-                  const d = new Date(exp + "T12:00:00");
-                  const dow = d.getDay();
-                  const day = d.getDate();
-                  const mon = d.getMonth();
-                  const isThirdFri = dow === 5 && day >= 15 && day <= 21;
-                  const isQuart = isThirdFri && [2, 5, 8, 11].includes(mon);
-                  const isMon = isThirdFri && !isQuart;
-                  const suffix = isQuart ? " ★ TRIMESTRAL" : isMon ? " · MENSUAL" : "";
-                  return (
-                    <option key={exp} value={exp}>{exp}{suffix}</option>
-                  );
-                })}
-              </optgroup>
-            ))}
-          </select>
-        )}
-
-        <button
-          onClick={analyze}
-          disabled={loading}
-          className="bg-accent text-white px-6 py-2 text-base font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
-        >
-          {loading ? "..." : "ANALYZE"}
-        </button>
-        {data && (
-          <span className="text-xs text-muted">
-            {data.expirationsAnalyzed} vencimientos · Max Pain ${data.maxPain.toFixed(2)} · hasta {upTo}
-          </span>
-        )}
-      </div>
-
       {/* Error */}
       {error && (
         <div className="mx-6 mt-4 p-4 border border-danger text-danger text-sm tracking-wide">
