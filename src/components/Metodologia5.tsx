@@ -229,8 +229,7 @@ function SignalRow({ signal }: { signal: SignalComponent }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function Metodologia5() {
-  const [ticker, setTicker] = useState("SPY");
+export default function Metodologia5({ ticker, onTickerChange }: { ticker: string; onTickerChange: (t: string) => void }) {
   const [upTo, setUpTo] = useState("");
   const [allExpirations, setAllExpirations] = useState<string[]>([]);
   const [data, setData] = useState<Analysis5Result | null>(null);
@@ -282,7 +281,7 @@ export default function Metodologia5() {
         <input
           className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
           value={ticker}
-          onChange={(e) => setTicker(e.target.value.toUpperCase())}
+          onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === "Enter" && analyze()}
           placeholder="TICKER"
           maxLength={10}

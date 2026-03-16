@@ -20,6 +20,7 @@ const TAB_DESCRIPTIONS: Record<Tab, string> = {
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("METODOLOGÍA 1");
+  const [ticker, setTicker] = useState("SPY");
 
   return (
     <div className="min-h-screen bg-bg text-gray-900">
@@ -52,11 +53,11 @@ export default function Home() {
       </div>
 
       {/* Content */}
-      {activeTab === "METODOLOGÍA 1" && <Metodologia1 />}
-      {activeTab === "METODOLOGÍA 2" && <Metodologia2 />}
-      {activeTab === "METODOLOGÍA 3" && <Metodologia3 />}
-      {activeTab === "METODOLOGÍA 4" && <Metodologia4 />}
-      {activeTab === "METODOLOGÍA 5" && <Metodologia5 />}
+      {activeTab === "METODOLOGÍA 1" && <Metodologia1 ticker={ticker} onTickerChange={setTicker} />}
+      {activeTab === "METODOLOGÍA 2" && <Metodologia2 ticker={ticker} onTickerChange={setTicker} />}
+      {activeTab === "METODOLOGÍA 3" && <Metodologia3 ticker={ticker} onTickerChange={setTicker} />}
+      {activeTab === "METODOLOGÍA 4" && <Metodologia4 ticker={ticker} onTickerChange={setTicker} />}
+      {activeTab === "METODOLOGÍA 5" && <Metodologia5 ticker={ticker} onTickerChange={setTicker} />}
     </div>
   );
 }

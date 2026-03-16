@@ -16,8 +16,7 @@ interface Candle {
   close: number;
 }
 
-export default function Metodologia1() {
-  const [ticker, setTicker] = useState("SPY");
+export default function Metodologia1({ ticker, onTickerChange }: { ticker: string; onTickerChange: (t: string) => void }) {
   const [expiration, setExpiration] = useState("");
   const [allExpirations, setAllExpirations] = useState<string[]>([]);
   const [data, setData] = useState<AnalysisResult | null>(null);
@@ -86,7 +85,7 @@ export default function Metodologia1() {
         <input
           className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
           value={ticker}
-          onChange={(e) => setTicker(e.target.value.toUpperCase())}
+          onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === "Enter" && analyze()}
           placeholder="TICKER"
           maxLength={10}

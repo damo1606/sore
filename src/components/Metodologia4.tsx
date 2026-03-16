@@ -5,8 +5,7 @@ import type { Heatmap2DData } from "@/app/api/heatmap2d/route";
 import GexHeatmap2D from "@/components/GexHeatmap2D";
 import SkewPanel from "@/components/SkewPanel";
 
-export default function Metodologia4() {
-  const [ticker, setTicker]           = useState("SPY");
+export default function Metodologia4({ ticker, onTickerChange }: { ticker: string; onTickerChange: (t: string) => void }) {
   const [upTo, setUpTo]               = useState("");
   const [allExpirations, setAllExpirations] = useState<string[]>([]);
   const [data, setData]               = useState<Heatmap2DData | null>(null);
@@ -50,7 +49,7 @@ export default function Metodologia4() {
         <input
           className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
           value={ticker}
-          onChange={(e) => setTicker(e.target.value.toUpperCase())}
+          onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === "Enter" && analyze()}
           placeholder="TICKER"
           maxLength={10}
