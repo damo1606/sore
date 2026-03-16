@@ -5,8 +5,9 @@ import Metodologia1 from "@/components/Metodologia1";
 import Metodologia2 from "@/components/Metodologia2";
 import Metodologia3 from "@/components/Metodologia3";
 import Metodologia4 from "@/components/Metodologia4";
+import Metodologia5 from "@/components/Metodologia5";
 
-const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4"] as const;
+const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4", "METODOLOGÍA 5"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_DESCRIPTIONS: Record<Tab, string> = {
@@ -14,6 +15,7 @@ const TAB_DESCRIPTIONS: Record<Tab, string> = {
   "METODOLOGÍA 2": "Z-SCORE GEX + PCR",
   "METODOLOGÍA 3": "CONFLUENCE 3D",
   "METODOLOGÍA 4": "MAPA DE CALOR S/R",
+  "METODOLOGÍA 5": "SEÑAL CONSOLIDADA",
 };
 
 export default function Home() {
@@ -54,6 +56,7 @@ export default function Home() {
       {activeTab === "METODOLOGÍA 2" && <Metodologia2 />}
       {activeTab === "METODOLOGÍA 3" && <Metodologia3 />}
       {activeTab === "METODOLOGÍA 4" && <Metodologia4 />}
+      {activeTab === "METODOLOGÍA 5" && <Metodologia5 />}
     </div>
   );
 }
