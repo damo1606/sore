@@ -56,6 +56,7 @@ function parseChain(optData: any): { calls: ExpData5["calls"]; puts: ExpData5["p
 
 export async function GET(request: NextRequest) {
   const ticker = request.nextUrl.searchParams.get("ticker")?.toUpperCase();
+  const upTo   = request.nextUrl.searchParams.get("upTo") ?? "";
   if (!ticker) return NextResponse.json({ error: "ticker is required" }, { status: 400 });
 
   try {
@@ -77,11 +78,15 @@ export async function GET(request: NextRequest) {
 
     if (!firstOptData) return NextResponse.json({ error: "No options chain" }, { status: 400 });
 
-    // Fetch first 8 expirations in parallel for multi-exp analysis
-    const selectedExps = allExpDates.slice(0, 8);
+    // Filter expirations up to chosen date; default to first 8
+    const selectedExps = upTo
+      ? allExpDates.filter((e) => e.date <= upTo)
+      : allExpDates.slice(0, 8);
+
+    const safeSelected = selectedExps.length > 0 ? selectedExps : allExpDates.slice(0, 1);
 
     const results = await Promise.all(
-      selectedExps.map(async ({ ts, date }) => {
+      safeSelected.map(async ({ ts, date }) => {
         if (date === primaryExpDate.date && firstOptData) {
           return { date, optData: firstOptData };
         }
@@ -143,7 +148,7 @@ export async function GET(request: NextRequest) {
       avgSkew25d
     );
 
-    return NextResponse.json({ ...result, availableExpirations });
+    return NextResponse.json({ ...result, availableExpirations, allExpirations: availableExpirations });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "Unknown error" }, { status: 500 });
   }

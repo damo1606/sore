@@ -231,18 +231,25 @@ function SignalRow({ signal }: { signal: SignalComponent }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Metodologia5() {
   const [ticker, setTicker] = useState("SPY");
+  const [upTo, setUpTo] = useState("");
+  const [allExpirations, setAllExpirations] = useState<string[]>([]);
   const [data, setData] = useState<Analysis5Result | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchAnalysis = useCallback(async (t: string) => {
+  const fetchAnalysis = useCallback(async (t: string, exp: string) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/analysis5?ticker=${t}`);
+      const url = exp ? `/api/analysis5?ticker=${t}&upTo=${exp}` : `/api/analysis5?ticker=${t}`;
+      const res = await fetch(url);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error");
       setData(json);
+      if (json.allExpirations?.length > 0) {
+        setAllExpirations(json.allExpirations);
+        if (!exp) setUpTo(json.allExpirations[7] ?? json.allExpirations.at(-1));
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -252,7 +259,12 @@ export default function Metodologia5() {
 
   async function analyze() {
     if (!ticker.trim()) return;
-    await fetchAnalysis(ticker);
+    await fetchAnalysis(ticker, upTo);
+  }
+
+  async function handleExpirationChange(exp: string) {
+    setUpTo(exp);
+    await fetchAnalysis(ticker, exp);
   }
 
   const verdictColor =
@@ -275,6 +287,42 @@ export default function Metodologia5() {
           placeholder="TICKER"
           maxLength={10}
         />
+
+        {allExpirations.length > 0 && (
+          <select
+            className="bg-bg border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
+            value={upTo}
+            onChange={(e) => handleExpirationChange(e.target.value)}
+          >
+            {Object.entries(
+              allExpirations.reduce<Record<string, string[]>>((acc, exp) => {
+                const label = new Date(exp + "T12:00:00").toLocaleString("en-US", {
+                  month: "long", year: "numeric",
+                });
+                if (!acc[label]) acc[label] = [];
+                acc[label].push(exp);
+                return acc;
+              }, {})
+            ).map(([monthLabel, dates]) => (
+              <optgroup key={monthLabel} label={monthLabel}>
+                {dates.map((exp) => {
+                  const d = new Date(exp + "T12:00:00");
+                  const dow = d.getDay();
+                  const day = d.getDate();
+                  const mon = d.getMonth();
+                  const isThirdFri = dow === 5 && day >= 15 && day <= 21;
+                  const isQuart = isThirdFri && [2, 5, 8, 11].includes(mon);
+                  const isMon = isThirdFri && !isQuart;
+                  const suffix = isQuart ? " ★ TRIMESTRAL" : isMon ? " · MENSUAL" : "";
+                  return (
+                    <option key={exp} value={exp}>{exp}{suffix}</option>
+                  );
+                })}
+              </optgroup>
+            ))}
+          </select>
+        )}
+
         <button
           onClick={analyze}
           disabled={loading}
@@ -284,7 +332,7 @@ export default function Metodologia5() {
         </button>
         {data && (
           <span className="text-xs text-muted">
-            {data.expirationsAnalyzed} vencimientos · Max Pain ${data.maxPain.toFixed(2)} · {data.expirationUsed}
+            {data.expirationsAnalyzed} vencimientos · Max Pain ${data.maxPain.toFixed(2)} · hasta {upTo}
           </span>
         )}
       </div>
