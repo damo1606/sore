@@ -61,6 +61,11 @@ export interface Analysis5Result {
   score: number;             // -100 to +100
   verdict: "ALCISTA" | "BAJISTA" | "NEUTRAL";
   probability: number;       // 50-95
+  // Cross-methodology levels (from M2 and M3)
+  m2Support: number;
+  m2Resistance: number;
+  m3Support: number;
+  m3Resistance: number;
 }
 
 // Max Pain: the strike that minimizes total dollar value of expiring options
@@ -105,6 +110,11 @@ export function computeAnalysis5(
   putCallRatio: number,
   // From multi-expiration 25Δ skew (M4 logic)
   avgSkew25d: number,
+  // Cross-methodology levels from M2 (Z-score GEX+PCR) and M3 (confluence 3D)
+  m2Support: number,
+  m2Resistance: number,
+  m3Support: number,
+  m3Resistance: number,
 ): Analysis5Result {
   const today = new Date();
   const lower = spot * (1 - MAX_DISTANCE);
@@ -195,6 +205,7 @@ export function computeAnalysis5(
       expirationsAnalyzed: expDataList.length,
       support: null, resistance: null, scoredStrikes: [],
       signals: [], score: 0, verdict: "NEUTRAL", probability: 50,
+      m2Support, m2Resistance, m3Support, m3Resistance,
     };
   }
 
@@ -295,7 +306,7 @@ export function computeAnalysis5(
     putCallRatio > 1.2  ? "PCR alto — cobertura bajista institucional elevada" :
     "PCR neutral — mercado equilibrado";
 
-  // 4. Confluence S/R Balance (25%): sum of support scores vs resistance scores from M5
+  // 4. Confluence S/R Balance (25%): internal M5 balance + cross-methodology alignment
   const supSum = scoredStrikes
     .filter((s) => s.strike < spot && s.gexTotal > 0)
     .reduce((a, s) => a + s.totalScore, 0);
@@ -303,11 +314,30 @@ export function computeAnalysis5(
     .filter((s) => s.strike > spot && s.gexTotal < 0)
     .reduce((a, s) => a + s.totalScore, 0);
   const totalSR = supSum + resSum;
-  const confluenceNorm = totalSR > 0 ? clamp((supSum - resSum) / totalSR, -1, 1) : 0;
+  const m5ConfluenceNorm = totalSR > 0 ? clamp((supSum - resSum) / totalSR, -1, 1) : 0;
+
+  // Cross-methodology center bias: if the midpoint S/R of M2, M3, and M5 is above spot → bullish
+  const center2 = (m2Support + m2Resistance) / 2;
+  const center3 = (m3Support + m3Resistance) / 2;
+  const center5 = support && resistance ? (support.strike + resistance.strike) / 2 : spot;
+  const avgCenter = (center2 + center3 + center5) / 3;
+  // Positive = avg center above spot = support dominates the range = bullish bias
+  const centerBias = (avgCenter - spot) / spot;
+  const crossAlignNorm = clamp(centerBias / 0.03, -1, 1);
+
+  const confluenceNorm = clamp(m5ConfluenceNorm * 0.6 + crossAlignNorm * 0.4, -1, 1);
+
+  // Count how many methodologies have support nearer than resistance to spot
+  const supNearCount = [
+    m2Support > 0 && m2Resistance > 0 && (spot - m2Support) < (m2Resistance - spot),
+    m3Support > 0 && m3Resistance > 0 && (spot - m3Support) < (m3Resistance - spot),
+    support && resistance && (spot - support.strike) < (resistance.strike - spot),
+  ].filter(Boolean).length;
+
   const confluenceLabel =
-    confluenceNorm > 0.2  ? "Soporte institucional domina — sesgo alcista consolidado" :
-    confluenceNorm < -0.2 ? "Resistencia institucional domina — sesgo bajista consolidado" :
-    "Balance S/R equilibrado — sin sesgo estructural claro";
+    confluenceNorm > 0.3 ? `${supNearCount}/3 metodologías confirman soporte más cercano — convergencia alcista` :
+    confluenceNorm < -0.3 ? `${3 - supNearCount}/3 metodologías confirman resistencia más cercana — convergencia bajista` :
+    "Balance S/R sin sesgo claro entre metodologías — señal mixta";
 
   // 5. IV Skew 25Δ (15%): positive skew (puts > calls IV) = bearish hedge = negative signal
   const skewNorm = clamp(-avgSkew25d / 0.05, -1, 1);
@@ -381,6 +411,10 @@ export function computeAnalysis5(
     score,
     verdict,
     probability,
+    m2Support,
+    m2Resistance,
+    m3Support,
+    m3Resistance,
   };
 }
 

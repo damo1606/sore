@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { computeAnalysis } from "@/lib/gex";
+import { computeAnalysis2 } from "@/lib/gex2";
+import { computeAnalysis3 } from "@/lib/gex3";
 import { computeAnalysis5, compute25dSkew, type ExpData5 } from "@/lib/gex5";
 
 const HEADERS = {
@@ -137,6 +139,27 @@ export async function GET(request: NextRequest) {
     }
     const avgSkew25d = skewCount > 0 ? skewSum / skewCount : 0;
 
+    // ── M2 levels (Z-score GEX + PCR, single expiration) ─────────────────────
+    let m2Support = spot * 0.97;
+    let m2Resistance = spot * 1.03;
+    try {
+      const m2 = computeAnalysis2(
+        ticker, spot, primaryExpDate.date, availableExpirations,
+        primaryCalls, primaryPuts
+      );
+      m2Support = m2.support;
+      m2Resistance = m2.resistance;
+    } catch {}
+
+    // ── M3 levels (confluence Z(GEX)+Z(OI)+Z(PCR), multi-expiration) ─────────
+    let m3Support = spot * 0.97;
+    let m3Resistance = spot * 1.03;
+    try {
+      const m3 = computeAnalysis3(ticker, spot, expDataList);
+      m3Support = m3.support;
+      m3Resistance = m3.resistance;
+    } catch {}
+
     // ── Compute M5 ────────────────────────────────────────────────────────────
     const result = computeAnalysis5(
       ticker,
@@ -145,7 +168,11 @@ export async function GET(request: NextRequest) {
       m1.levels.gammaFlip,
       m1.institutionalPressure,
       m1.putCallRatio,
-      avgSkew25d
+      avgSkew25d,
+      m2Support,
+      m2Resistance,
+      m3Support,
+      m3Resistance,
     );
 
     return NextResponse.json({ ...result, availableExpirations, allExpirations: availableExpirations });

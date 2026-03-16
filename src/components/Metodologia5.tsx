@@ -86,7 +86,7 @@ function buildSignalSummary(data: Analysis5Result): string[] {
     `Gamma Regime (peso ${Math.round(gamma.weight * 100)}%): ${gamma.label}. El Gamma Flip en $${gamma.rawValue.toFixed(2)} es la línea divisoria — sobre él los dealers estabilizan el precio, bajo él lo amplifican. Esta señal define el entorno estructural del mercado.`,
     `Institutional Pressure (peso ${Math.round(inst.weight * 100)}%): ${inst.rawValue >= 0 ? "+" : ""}${inst.rawValue.toFixed(1)}% — ${inst.label}. Mide el desbalance neto del GEX entre calls y puts en términos de dólares: positivo significa que los dealers tienen mayor exposición gamma en calls que en puts.`,
     `Put/Call Ratio (peso ${Math.round(pcr.weight * 100)}%): PCR = ${pcr.rawValue.toFixed(2)} — ${pcr.label}. Un PCR bajo (< 0.7) indica que hay más calls que puts — optimismo especulativo. Un PCR alto (> 1.2) indica cobertura masiva al bajista — ya sea por miedo o posicionamiento institucional defensivo.`,
-    `Confluence S/R (peso ${Math.round(conf.weight * 100)}%): balance = ${conf.rawValue >= 0 ? "+" : ""}${(conf.rawValue * 100).toFixed(0)}% — ${conf.label}. Compara el peso total de los soportes vs resistencias detectados en M5. Un desequilibrio claro a favor del soporte refuerza la señal alcista con respaldo estructural.`,
+    `Confluence S/R (peso ${Math.round(conf.weight * 100)}%): balance = ${conf.rawValue >= 0 ? "+" : ""}${(conf.rawValue * 100).toFixed(0)}% — ${conf.label}. Combina el balance interno de M5 (60%) con la alineación de niveles de M2 y M3 (40%). Si los tres modelos coinciden en que el soporte está más cerca del spot que la resistencia, el sesgo alcista es estructuralmente robusto.`,
     `${bullCount} de 5 señales apuntan alcista vs ${bearCount} bajistas. IV Skew 25Δ = ${(skew.rawValue * 100).toFixed(1)}% — ${skew.label}. El skew de volatilidad revela si los institucionales están pagando más por protección bajista (puts caros) o si hay demanda de calls, lo que indica sesgo de flujo real de dinero.`,
   ];
 }
@@ -331,6 +331,34 @@ export default function Metodologia5({
               <div className="border-l-2 border-border pl-8">
                 <div className="text-xs text-muted tracking-widest mb-1">MAX PAIN</div>
                 <div className="text-3xl font-bold text-subtle">${data.maxPain.toFixed(2)}</div>
+              </div>
+              <div className="border-l-2 border-border pl-8">
+                <div className="text-xs text-muted tracking-widest mb-1">PUT WALL · M5</div>
+                <div className="text-3xl font-bold text-accent">
+                  {data.support ? `$${data.support.strike.toFixed(2)}` : "—"}
+                </div>
+              </div>
+              <div className="border-l-2 border-border pl-8">
+                <div className="text-xs text-muted tracking-widest mb-1">CALL WALL · M5</div>
+                <div className="text-3xl font-bold text-danger">
+                  {data.resistance ? `$${data.resistance.strike.toFixed(2)}` : "—"}
+                </div>
+              </div>
+              <div className="border-l-2 border-border pl-8">
+                <div className="text-xs text-muted tracking-widest mb-1">PUT WALL · M2</div>
+                <div className="text-2xl font-bold text-accent">${data.m2Support.toFixed(2)}</div>
+              </div>
+              <div className="border-l-2 border-border pl-8">
+                <div className="text-xs text-muted tracking-widest mb-1">CALL WALL · M2</div>
+                <div className="text-2xl font-bold text-danger">${data.m2Resistance.toFixed(2)}</div>
+              </div>
+              <div className="border-l-2 border-border pl-8">
+                <div className="text-xs text-muted tracking-widest mb-1">SOPORTE · M3</div>
+                <div className="text-2xl font-bold text-accent">${data.m3Support.toFixed(2)}</div>
+              </div>
+              <div className="border-l-2 border-border pl-8">
+                <div className="text-xs text-muted tracking-widest mb-1">RESIST. · M3</div>
+                <div className="text-2xl font-bold text-danger">${data.m3Resistance.toFixed(2)}</div>
               </div>
               <div className="border-l-2 border-border pl-8">
                 <div className="text-xs text-muted tracking-widest mb-1">TICKER</div>
