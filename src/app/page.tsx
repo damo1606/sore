@@ -151,7 +151,7 @@ export default function Home() {
         <Metodologia5 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
       </div>
       <div className={activeTab === "METODOLOGÍA 6" ? "" : "hidden"}>
-        <Metodologia6 analyzeKey={analyzeKey} />
+        <Metodologia6 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
       </div>
     </div>
   );

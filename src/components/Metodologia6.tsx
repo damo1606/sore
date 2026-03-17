@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Analysis6Result, RegimeSignal, RegimeType } from "@/lib/gex6";
+import type { Analysis5Result } from "@/lib/gex5";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -165,20 +166,94 @@ function buildSignalDetailSummary(d: Analysis6Result): string[] {
   ];
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-export default function Metodologia6({ analyzeKey }: { analyzeKey: number }) {
-  const [data, setData] = useState<Analysis6Result | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+// ─── Brief builder ────────────────────────────────────────────────────────────
+function buildBrief(d5: Analysis5Result, d6: Analysis6Result) {
+  const adjustedScore = Math.round(d5.score * d6.m5Multiplier);
+  const entry  = d5.support?.strike ?? null;
+  const target = d5.resistance?.strike ?? null;
 
-  async function fetchRegime() {
+  // Stop: tighter in compression, wider in expansion
+  const stopBuffer =
+    d6.regime === "COMPRESIÓN" ? 0.005 :
+    d6.regime === "TRANSICIÓN" ? 0.008 : 0.012;
+  const stop = entry ? parseFloat((entry * (1 - stopBuffer)).toFixed(2)) : null;
+
+  const risk   = entry && stop   ? entry - stop         : null;
+  const reward = entry && target ? target - entry       : null;
+  const rr     = risk && reward && risk > 0 ? (reward / risk).toFixed(1) : null;
+
+  // Convergence: how many of M2, M3, M5 supports are within 1.5% of each other
+  const supRef = entry;
+  let convergence = 0;
+  if (supRef) {
+    if (Math.abs(d5.m2Support - supRef) / supRef < 0.015) convergence++;
+    if (Math.abs(d5.m3Support - supRef) / supRef < 0.015) convergence++;
+    convergence++; // M5 always counts
+  }
+
+  // Adjusted verdict
+  let adjustedVerdict: string;
+  if (d6.signalSuspended) {
+    adjustedVerdict = "NO OPERAR";
+  } else if (adjustedScore > 25) {
+    adjustedVerdict = "ALCISTA";
+  } else if (adjustedScore < -25) {
+    adjustedVerdict = "BAJISTA";
+  } else {
+    adjustedVerdict = "NEUTRAL";
+  }
+
+  // Entry condition
+  const condition =
+    d6.signalSuspended
+      ? "Esperar normalización del VIX antes de operar con modelos de GEX"
+      : d5.verdict === "ALCISTA" && d6.regime === "COMPRESIÓN"
+      ? "Comprar en toque del soporte · Confirmar con vela de reversión"
+      : d5.verdict === "ALCISTA" && d6.regime === "EXPANSIÓN"
+      ? "Esperar consolidación sobre soporte · Stops más amplios por régimen expansivo"
+      : d5.verdict === "BAJISTA" && d6.regime === "COMPRESIÓN"
+      ? "Vender en toque de resistencia · Confirmar rechazo con volumen"
+      : d5.verdict === "BAJISTA" && d6.regime === "EXPANSIÓN"
+      ? "Esperar ruptura bajo soporte con volumen · Evitar rebotes en régimen expansivo"
+      : "Esperar ruptura de S/R con volumen confirmado antes de tomar posición";
+
+  return { adjustedScore, adjustedVerdict, entry, target, stop, rr, convergence, condition };
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+export default function Metodologia6({
+  ticker,
+  expiration,
+  analyzeKey,
+}: {
+  ticker: string;
+  expiration: string;
+  analyzeKey: number;
+}) {
+  const [data, setData]     = useState<Analysis6Result | null>(null);
+  const [data5, setData5]   = useState<Analysis5Result | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]   = useState("");
+
+  async function fetchAll() {
+    if (!ticker.trim()) return;
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/analysis6");
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error");
-      setData(json);
+      const url5 = expiration
+        ? `/api/analysis5?ticker=${ticker}&upTo=${expiration}`
+        : `/api/analysis5?ticker=${ticker}`;
+      const [res6, res5] = await Promise.all([
+        fetch("/api/analysis6"),
+        fetch(url5),
+      ]);
+      const json6 = await res6.json();
+      if (!res6.ok) throw new Error(json6.error ?? "Error");
+      setData(json6);
+      if (res5.ok) {
+        const json5 = await res5.json();
+        setData5(json5);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -187,8 +262,8 @@ export default function Metodologia6({ analyzeKey }: { analyzeKey: number }) {
   }
 
   useEffect(() => {
-    if (analyzeKey > 0) {
-      fetchRegime();
+    if (analyzeKey > 0 && ticker) {
+      fetchAll();
     }
   }, [analyzeKey]);
 
@@ -391,6 +466,100 @@ export default function Metodologia6({ analyzeKey }: { analyzeKey: number }) {
               </div>
             </div>
           </div>
+
+          {/* ── BRIEF OPERATIVO ───────────────────────────────────────────────── */}
+          {data5 && (() => {
+            const b = buildBrief(data5, data);
+            const isNoOperar  = b.adjustedVerdict === "NO OPERAR";
+            const isNeutral   = b.adjustedVerdict === "NEUTRAL";
+            const isAlcista   = b.adjustedVerdict === "ALCISTA";
+            const verdictCol  = isNoOperar ? "text-danger" : isNeutral ? "text-warning" : isAlcista ? "text-accent" : "text-danger";
+            const borderCol   = isNoOperar ? "border-danger" : isNeutral ? "border-warning" : isAlcista ? "border-accent" : "border-danger";
+
+            return (
+              <div className={`bg-card border-2 ${borderCol} p-6`}>
+                <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
+                  BRIEF OPERATIVO — M5 × RÉGIMEN M6
+                </div>
+
+                {/* Header row */}
+                <div className="flex flex-wrap items-end gap-8 mb-6 pb-6 border-b border-border">
+                  <div>
+                    <div className="text-xs text-muted tracking-widest mb-1">VEREDICTO AJUSTADO</div>
+                    <div className={`text-5xl font-black tracking-widest ${verdictCol}`}>{b.adjustedVerdict}</div>
+                  </div>
+                  <div className="border-l-2 border-border pl-8">
+                    <div className="text-xs text-muted tracking-widest mb-1">SCORE M5 RAW</div>
+                    <div className="text-3xl font-bold text-subtle">
+                      {data5.score >= 0 ? "+" : ""}{data5.score}
+                    </div>
+                  </div>
+                  <div className="border-l-2 border-border pl-8">
+                    <div className="text-xs text-muted tracking-widest mb-1">× RÉGIMEN</div>
+                    <div className={`text-3xl font-bold ${data.m5Multiplier >= 1 ? "text-accent" : data.m5Multiplier >= 0.7 ? "text-warning" : "text-danger"}`}>
+                      ×{data.m5Multiplier.toFixed(1)}
+                    </div>
+                  </div>
+                  <div className="border-l-2 border-border pl-8">
+                    <div className="text-xs text-muted tracking-widest mb-1">SCORE AJUSTADO</div>
+                    <div className={`text-4xl font-bold ${b.adjustedScore >= 0 ? "text-accent" : "text-danger"}`}>
+                      {b.adjustedScore >= 0 ? "+" : ""}{b.adjustedScore}
+                    </div>
+                  </div>
+                  <div className="border-l-2 border-border pl-8">
+                    <div className="text-xs text-muted tracking-widest mb-1">CONVERGENCIA</div>
+                    <div className={`text-3xl font-bold ${b.convergence === 3 ? "text-accent" : b.convergence === 2 ? "text-warning" : "text-muted"}`}>
+                      {b.convergence}/3
+                    </div>
+                    <div className="text-xs text-muted">M2 · M3 · M5</div>
+                  </div>
+                </div>
+
+                {/* Trading levels */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-surface border border-border p-4">
+                    <div className="text-xs text-muted tracking-widest mb-1">ENTRADA</div>
+                    <div className="text-2xl font-bold text-accent">
+                      {b.entry ? `$${b.entry.toFixed(2)}` : "—"}
+                    </div>
+                    <div className="text-xs text-muted mt-1">Soporte institucional</div>
+                  </div>
+                  <div className="bg-surface border border-border p-4">
+                    <div className="text-xs text-muted tracking-widest mb-1">OBJETIVO</div>
+                    <div className="text-2xl font-bold text-danger">
+                      {b.target ? `$${b.target.toFixed(2)}` : "—"}
+                    </div>
+                    <div className="text-xs text-muted mt-1">Resistencia institucional</div>
+                  </div>
+                  <div className="bg-surface border border-border p-4">
+                    <div className="text-xs text-muted tracking-widest mb-1">STOP</div>
+                    <div className="text-2xl font-bold text-subtle">
+                      {b.stop ? `$${b.stop.toFixed(2)}` : "—"}
+                    </div>
+                    <div className="text-xs text-muted mt-1">
+                      {data.regime === "COMPRESIÓN" ? "−0.5% bajo soporte" :
+                       data.regime === "TRANSICIÓN" ? "−0.8% bajo soporte" : "−1.2% bajo soporte"}
+                    </div>
+                  </div>
+                  <div className="bg-surface border border-border p-4">
+                    <div className="text-xs text-muted tracking-widest mb-1">RATIO R/R</div>
+                    <div className={`text-2xl font-bold ${b.rr && parseFloat(b.rr) >= 2 ? "text-accent" : b.rr && parseFloat(b.rr) >= 1.5 ? "text-warning" : "text-danger"}`}>
+                      {b.rr ? `1 : ${b.rr}` : "—"}
+                    </div>
+                    <div className="text-xs text-muted mt-1">
+                      {b.rr && parseFloat(b.rr) >= 2 ? "Favorable" : b.rr && parseFloat(b.rr) >= 1.5 ? "Aceptable" : "Desfavorable"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Condition */}
+                <div className={`border-l-4 ${borderCol} pl-4 py-2`}>
+                  <div className="text-xs text-muted tracking-widest mb-1">CONDICIÓN DE ENTRADA</div>
+                  <div className="text-base font-semibold text-gray-900">{b.condition}</div>
+                </div>
+              </div>
+            );
+          })()}
 
         </main>
       )}
