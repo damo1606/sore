@@ -75,7 +75,7 @@ export default function Metodologia1({
       {!data && !loading && !error && (
         <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-muted">
           <div className="w-20 h-20 border-2 border-border flex items-center justify-center text-4xl">◈</div>
-          <p className="text-base tracking-widest">ENTER ANY US TICKER AND CLICK ANALYZE</p>
+          <p className="text-base tracking-widest">INGRESA UN TICKER Y PRESIONA ANALIZAR</p>
           <p className="text-sm opacity-60">SPY · QQQ · NVDA · AAPL · TSLA · MSFT · AMZN · GOOGL · META · AMD</p>
         </div>
       )}
@@ -84,7 +84,7 @@ export default function Metodologia1({
         <div className="flex items-center justify-center h-[70vh]">
           <div className="flex flex-col items-center gap-4">
             <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-            <p className="text-base text-muted tracking-widest">FETCHING OPTIONS DATA...</p>
+            <p className="text-base text-muted tracking-widest">OBTENIENDO DATOS DE OPCIONES...</p>
           </div>
         </div>
       )}
@@ -93,17 +93,17 @@ export default function Metodologia1({
         <main className="p-6 space-y-6">
           <div className="flex flex-wrap items-end gap-8">
             <div>
-              <div className="text-sm text-muted tracking-widest mb-1">SPOT PRICE</div>
+              <div className="text-sm text-muted tracking-widest mb-1">PRECIO SPOT</div>
               <div className="text-6xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
             </div>
             <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">GAMMA REGIME</div>
+              <div className="text-sm text-muted tracking-widest mb-1">RÉGIMEN GAMMA</div>
               <div className={`text-3xl font-bold tracking-wide ${isPositiveGamma ? "text-accent" : "text-danger"}`}>
-                {isPositiveGamma ? "▲ POSITIVE GAMMA" : "▼ NEGATIVE GAMMA"}
+                {isPositiveGamma ? "▲ GAMMA POSITIVO" : "▼ GAMMA NEGATIVO"}
               </div>
             </div>
             <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">EXPIRATION</div>
+              <div className="text-sm text-muted tracking-widest mb-1">VENCIMIENTO</div>
               <div className="text-3xl font-bold text-subtle">{data.expiration}</div>
             </div>
             <div className="border-l-2 border-border pl-8">
@@ -114,7 +114,7 @@ export default function Metodologia1({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="bg-card border border-border p-6">
-              <div className="text-sm text-muted tracking-widest mb-3 font-semibold">INSTITUTIONAL PRESSURE</div>
+              <div className="text-sm text-muted tracking-widest mb-3 font-semibold">PRESIÓN INSTITUCIONAL</div>
               <div className={`text-4xl font-bold mb-3 ${data.institutionalPressure >= 0 ? "text-accent" : "text-danger"}`}>
                 {data.institutionalPressure >= 0 ? "+" : ""}{data.institutionalPressure.toFixed(1)}%
               </div>
@@ -125,7 +125,7 @@ export default function Metodologia1({
                 />
               </div>
               <div className="flex justify-between text-xs text-muted mt-1">
-                <span>BEARISH</span><span>NEUTRAL</span><span>BULLISH</span>
+                <span>BAJISTA</span><span>NEUTRAL</span><span>ALCISTA</span>
               </div>
               <div className="text-xs text-muted mt-3">
                 {data.institutionalPressure >= 20 ? "Dealers fuertemente posicionados al alza"
@@ -137,7 +137,7 @@ export default function Metodologia1({
             </div>
 
             <div className="bg-card border border-border p-6">
-              <div className="text-sm text-muted tracking-widest mb-3 font-semibold">PUT / CALL RATIO</div>
+              <div className="text-sm text-muted tracking-widest mb-3 font-semibold">RATIO PUT / CALL</div>
               <div className={`text-4xl font-bold mb-3 ${data.putCallRatio > 1.2 ? "text-danger" : data.putCallRatio < 0.7 ? "text-accent" : "text-warning"}`}>
                 {data.putCallRatio.toFixed(2)}
               </div>
@@ -148,7 +148,7 @@ export default function Metodologia1({
                 />
               </div>
               <div className="flex justify-between text-xs text-muted mt-1">
-                <span>0 — BULLISH</span><span>1.0</span><span>2.0 — BEARISH</span>
+                <span>0 — ALCISTA</span><span>1.0</span><span>2.0 — BAJISTA</span>
               </div>
               <div className="text-xs text-muted mt-3">
                 {data.putCallRatio > 1.5 ? "Miedo extremo — hedging institucional masivo"
@@ -164,21 +164,21 @@ export default function Metodologia1({
 
           <div className="bg-card border border-border p-6">
             <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
-              PRICE ACTION — JAPANESE CANDLESTICKS + INSTITUTIONAL LEVELS (3 MONTHS)
+              PRECIO — VELAS JAPONESAS + NIVELES INSTITUCIONALES (3 MESES)
             </div>
             <CandlestickChart candles={candles} levels={data.levels} spot={data.spot} />
           </div>
 
           <div className="bg-card border border-border p-6">
             <div className="text-sm text-muted tracking-widest mb-5 font-semibold">
-              GAMMA EXPOSURE PROFILE — GEX BY STRIKE
+              PERFIL DE GAMMA EXPOSURE — GEX POR STRIKE
             </div>
             <GexChart data={data.gexProfile} spot={data.spot} levels={data.levels} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-card border border-border p-6">
-              <div className="text-sm text-muted tracking-widest mb-5 font-semibold">DEALER HEDGING FLOW MODEL</div>
+              <div className="text-sm text-muted tracking-widest mb-5 font-semibold">MODELO DE FLUJO DE COBERTURA DEALER</div>
               <DealerFlowChart
                 prices={data.dealerFlow.prices}
                 flows={data.dealerFlow.flows}
@@ -187,7 +187,7 @@ export default function Metodologia1({
               />
             </div>
             <div className="bg-card border border-border p-6">
-              <div className="text-sm text-muted tracking-widest mb-5 font-semibold">VANNA EXPOSURE BY STRIKE</div>
+              <div className="text-sm text-muted tracking-widest mb-5 font-semibold">EXPOSICIÓN VANNA POR STRIKE</div>
               <VannaChart data={data.vannaProfile} spot={data.spot} />
             </div>
           </div>

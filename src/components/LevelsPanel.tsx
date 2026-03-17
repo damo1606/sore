@@ -12,35 +12,35 @@ export default function LevelsPanel({ levels, spot }: Props) {
       value: levels.callWall,
       color: "text-danger",
       borderColor: "border-t-danger",
-      desc: "Max call open interest",
+      desc: "Mayor open interest en calls",
     },
     {
-      label: "RESISTANCE",
+      label: "RESISTENCIA",
       value: levels.resistance,
       color: "text-orange-400",
       borderColor: "border-t-orange-500",
-      desc: "Most negative GEX strike",
+      desc: "Strike con GEX más negativo sobre spot",
     },
     {
       label: "GAMMA FLIP",
       value: levels.gammaFlip,
       color: "text-warning",
       borderColor: "border-t-warning",
-      desc: "Cumulative GEX = 0",
+      desc: "GEX acumulado = 0",
     },
     {
-      label: "SUPPORT",
+      label: "SOPORTE",
       value: levels.support,
       color: "text-accent",
       borderColor: "border-t-accent",
-      desc: "Max positive GEX strike",
+      desc: "Strike con GEX más positivo bajo spot",
     },
     {
       label: "PUT WALL",
       value: levels.putWall,
       color: "text-info",
       borderColor: "border-t-info",
-      desc: "Max put open interest",
+      desc: "Mayor open interest en puts",
     },
   ];
 
@@ -59,7 +59,7 @@ export default function LevelsPanel({ levels, spot }: Props) {
             </div>
             <div className="text-sm text-subtle mt-2">
               {pct >= 0 ? "+" : ""}
-              {pct.toFixed(2)}% vs spot
+              {pct.toFixed(2)}% vs precio
             </div>
             <div className="text-xs text-muted mt-1">{item.desc}</div>
           </div>
