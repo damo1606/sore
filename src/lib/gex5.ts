@@ -3,7 +3,19 @@ import { gammaBS, deltaBS } from "./blackscholes";
 const RISK_FREE_RATE = 0.043;
 const CONTRACT_SIZE = 100;
 const MAX_DISTANCE = 0.12;
-const MIN_OI = 5;
+
+function minOIThreshold(expDataList: ExpData5[]): number {
+  let maxOI = 1;
+  for (const exp of expDataList) {
+    for (const c of exp.calls) maxOI = Math.max(maxOI, c.openInterest);
+    for (const p of exp.puts)  maxOI = Math.max(maxOI, p.openInterest);
+  }
+  return Math.max(10, maxOI * 0.003);
+}
+
+function timeWeight(dte: number): number {
+  return Math.exp(-Math.max(1, dte) / 45);
+}
 
 export interface RawOption5 {
   strike: number;
@@ -133,10 +145,10 @@ export function computeAnalysis5(
 
   for (const expData of expDataList) {
     const expDate = new Date(expData.expiration + "T00:00:00");
-    const T = Math.max(
-      (expDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000),
-      0.001
-    );
+    const msToExp = expDate.getTime() - today.getTime();
+    const dte = msToExp / (24 * 60 * 60 * 1000);
+    const T   = Math.max(dte / 365, 0.001);
+    const tW  = timeWeight(dte);
 
     const allStrikes = Array.from(new Set([
       ...expData.calls.map((c) => c.strike),
@@ -165,27 +177,28 @@ export function computeAnalysis5(
       const gCall = gammaBS(spot, strike, T, RISK_FREE_RATE, callIV);
       const gPut = gammaBS(spot, strike, T, RISK_FREE_RATE, putIV);
       const gex =
-        callOI * gCall * spot * spot * CONTRACT_SIZE -
-        putOI * gPut * spot * spot * CONTRACT_SIZE;
+        (callOI * gCall * spot * spot * CONTRACT_SIZE -
+         putOI  * gPut  * spot * spot * CONTRACT_SIZE) * tW;
 
       const existing = strikeMap.get(strike) ?? {
         gexSum: 0, callOISum: 0, putOISum: 0, highOIExpCount: 0,
       };
       strikeMap.set(strike, {
-        gexSum: existing.gexSum + gex,
-        callOISum: existing.callOISum + callOI,
-        putOISum: existing.putOISum + putOI,
+        gexSum:    existing.gexSum    + gex,
+        callOISum: existing.callOISum + callOI * tW,
+        putOISum:  existing.putOISum  + putOI  * tW,
         highOIExpCount: existing.highOIExpCount + (top5.has(strike) ? 1 : 0),
       });
     }
   }
 
-  // ─── Build raw strike array ±12% with min OI filter ─────────────────────
+  // ─── Build raw strike array ±12% with dynamic liquidity filter ───────────
+  const minOI = minOIThreshold(expDataList);
   const rawStrikes = Array.from(strikeMap.entries())
     .filter(([strike, d]) =>
       strike >= lower &&
       strike <= upper &&
-      d.callOISum + d.putOISum >= MIN_OI
+      d.callOISum + d.putOISum >= minOI
     )
     .map(([strike, d]) => ({
       strike,

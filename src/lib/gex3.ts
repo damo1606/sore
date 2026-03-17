@@ -4,7 +4,21 @@ import type { Analysis3Result, AggStrikeData } from "@/types";
 const RISK_FREE_RATE = 0.043;
 const CONTRACT_SIZE = 100;
 const MAX_DISTANCE = 0.15;
-const MIN_OI = 5;
+
+/** Adaptive liquidity threshold based on peak OI of the ticker */
+function minOIThreshold(expDataList: ExpData[]): number {
+  let maxOI = 1;
+  for (const exp of expDataList) {
+    for (const c of exp.calls) maxOI = Math.max(maxOI, c.openInterest);
+    for (const p of exp.puts)  maxOI = Math.max(maxOI, p.openInterest);
+  }
+  return Math.max(10, maxOI * 0.003);
+}
+
+/** Time weight: near-term expirations count more (half-life ≈ 31 days) */
+function timeWeight(dte: number): number {
+  return Math.exp(-Math.max(1, dte) / 45);
+}
 
 interface RawOption {
   strike: number;
@@ -43,10 +57,10 @@ export function computeAnalysis3(
 
   for (const expData of expDataList) {
     const expDate = new Date(expData.expiration + "T00:00:00");
-    const T = Math.max(
-      (expDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000),
-      0.001
-    );
+    const msToExp = expDate.getTime() - today.getTime();
+    const dte = msToExp / (24 * 60 * 60 * 1000);
+    const T   = Math.max(dte / 365, 0.001);
+    const tW  = timeWeight(dte); // near-term expirations weighted higher
 
     const allStrikes = Array.from(
       new Set([...expData.calls.map((c) => c.strike), ...expData.puts.map((p) => p.strike)])
@@ -64,31 +78,32 @@ export function computeAnalysis3(
       const gCall = gammaBS(spot, strike, T, RISK_FREE_RATE, callIV);
       const gPut = gammaBS(spot, strike, T, RISK_FREE_RATE, putIV);
 
-      const gexCall = callOI * gCall * spot * spot * CONTRACT_SIZE;
-      const gexPut = -(putOI * gPut * spot * spot * CONTRACT_SIZE);
-      const gex = gexCall + gexPut;
+      const gex =
+        (callOI * gCall * spot * spot * CONTRACT_SIZE -
+         putOI  * gPut  * spot * spot * CONTRACT_SIZE) * tW;
 
       const existing = strikeMap.get(strike) ?? {
         gexSum: 0, callOISum: 0, putOISum: 0, expCount: 0,
       };
       strikeMap.set(strike, {
-        gexSum: existing.gexSum + gex,
-        callOISum: existing.callOISum + callOI,
-        putOISum: existing.putOISum + putOI,
-        expCount: existing.expCount + 1,
+        gexSum:    existing.gexSum    + gex,
+        callOISum: existing.callOISum + callOI * tW,
+        putOISum:  existing.putOISum  + putOI  * tW,
+        expCount:  existing.expCount  + 1,
       });
     }
   }
 
-  // Build filtered strike array (±15% from spot, min OI)
+  // Build filtered strike array (±15% from spot, dynamic liquidity threshold)
   const lower = spot * (1 - MAX_DISTANCE);
   const upper = spot * (1 + MAX_DISTANCE);
+  const minOI = minOIThreshold(expDataList);
 
   let strikes: AggStrikeData[] = Array.from(strikeMap.entries())
     .filter(([strike, d]) =>
       strike >= lower &&
       strike <= upper &&
-      d.callOISum + d.putOISum >= MIN_OI
+      d.callOISum + d.putOISum >= minOI
     )
     .map(([strike, d]) => ({
       strike,

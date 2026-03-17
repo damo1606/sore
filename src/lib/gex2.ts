@@ -4,7 +4,11 @@ import type { Analysis2Result, StrikeData } from "@/types";
 const RISK_FREE_RATE = 0.043;
 const CONTRACT_SIZE = 100;
 const MAX_DISTANCE = 0.15;
-const MIN_OI = 10;
+
+function minOIThreshold(rawCalls: RawOption[], rawPuts: RawOption[]): number {
+  const maxOI = Math.max(...rawCalls.map((c) => c.openInterest), ...rawPuts.map((p) => p.openInterest), 1);
+  return Math.max(10, maxOI * 0.003);
+}
 
 interface RawOption {
   strike: number;
@@ -79,11 +83,12 @@ export function computeAnalysis2(
     };
   });
 
-  // 1. Filter to ±15% from spot AND minimum OI first
+  // 1. Filter to ±15% from spot AND dynamic liquidity threshold
   const lower = spot * (1 - MAX_DISTANCE);
   const upper = spot * (1 + MAX_DISTANCE);
+  const minOI = minOIThreshold(rawCalls, rawPuts);
   let filtered = strikeData.filter(
-    (d) => d.strike >= lower && d.strike <= upper && (d.callOI + d.putOI) >= MIN_OI
+    (d) => d.strike >= lower && d.strike <= upper && (d.callOI + d.putOI) >= minOI
   );
 
   // Fallback: if too few strikes, relax OI filter

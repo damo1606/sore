@@ -3,7 +3,13 @@ import type { AnalysisResult, GexPoint, VannaPoint } from "@/types";
 
 const RISK_FREE_RATE = 0.05;
 const CONTRACT_SIZE = 100;
-const MIN_OI = 10;
+
+/** Dynamic liquidity filter: adapts to the ticker's OI scale.
+ *  SPY (peak OI ~400k) → threshold ~1,200 | AAPL (~30k) → ~90 | small caps → 10 */
+function minOIThreshold(options: RawOption[]): number {
+  const maxOI = Math.max(...options.map((o) => o.openInterest), 1);
+  return Math.max(10, maxOI * 0.003);
+}
 
 interface RawOption {
   strike: number;
@@ -36,9 +42,10 @@ export function computeAnalysis(
   );
 
   const options: ProcessedOption[] = [];
+  const minOI = minOIThreshold([...rawCalls, ...rawPuts]);
 
   for (const c of rawCalls) {
-    if (!c.impliedVolatility || !c.openInterest || c.openInterest < MIN_OI) continue;
+    if (!c.impliedVolatility || !c.openInterest || c.openInterest < minOI) continue;
     const g = gammaBS(spot, c.strike, T, RISK_FREE_RATE, c.impliedVolatility);
     const v = vannaBS(spot, c.strike, T, RISK_FREE_RATE, c.impliedVolatility);
     options.push({
@@ -52,7 +59,7 @@ export function computeAnalysis(
   }
 
   for (const p of rawPuts) {
-    if (!p.impliedVolatility || !p.openInterest || p.openInterest < MIN_OI) continue;
+    if (!p.impliedVolatility || !p.openInterest || p.openInterest < minOI) continue;
     const g = gammaBS(spot, p.strike, T, RISK_FREE_RATE, p.impliedVolatility);
     const v = vannaBS(spot, p.strike, T, RISK_FREE_RATE, p.impliedVolatility);
     options.push({
