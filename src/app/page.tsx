@@ -6,8 +6,9 @@ import Metodologia2 from "@/components/Metodologia2";
 import Metodologia3 from "@/components/Metodologia3";
 import Metodologia4 from "@/components/Metodologia4";
 import Metodologia5 from "@/components/Metodologia5";
+import Metodologia6 from "@/components/Metodologia6";
 
-const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4", "METODOLOGÍA 5"] as const;
+const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4", "METODOLOGÍA 5", "METODOLOGÍA 6"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_DESCRIPTIONS: Record<Tab, string> = {
@@ -16,6 +17,7 @@ const TAB_DESCRIPTIONS: Record<Tab, string> = {
   "METODOLOGÍA 3": "CONFLUENCE 3D",
   "METODOLOGÍA 4": "MAPA DE CALOR S/R",
   "METODOLOGÍA 5": "SEÑAL CONSOLIDADA",
+  "METODOLOGÍA 6": "RÉGIMEN DE MERCADO",
 };
 
 export default function Home() {
@@ -147,6 +149,9 @@ export default function Home() {
       </div>
       <div className={activeTab === "METODOLOGÍA 5" ? "" : "hidden"}>
         <Metodologia5 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+      </div>
+      <div className={activeTab === "METODOLOGÍA 6" ? "" : "hidden"}>
+        <Metodologia6 analyzeKey={analyzeKey} />
       </div>
     </div>
   );
