@@ -112,8 +112,14 @@ export function computeAnalysis(
     }
   }
 
-  const support = gexProfile.reduce((m, p) => (p.gex > m.gex ? p : m), gexProfile[0])?.strike ?? spot;
-  const resistance = gexProfile.reduce((m, p) => (p.gex < m.gex ? p : m), gexProfile[0])?.strike ?? spot;
+  const belowSpot = gexProfile.filter((p) => p.strike < spot);
+  const aboveSpot = gexProfile.filter((p) => p.strike > spot);
+  const support = (belowSpot.length > 0
+    ? belowSpot.reduce((m, p) => (p.gex > m.gex ? p : m), belowSpot[0])
+    : gexProfile.reduce((m, p) => (p.gex > m.gex ? p : m), gexProfile[0]))?.strike ?? spot * 0.97;
+  const resistance = (aboveSpot.length > 0
+    ? aboveSpot.reduce((m, p) => (p.gex < m.gex ? p : m), aboveSpot[0])
+    : gexProfile.reduce((m, p) => (p.gex < m.gex ? p : m), gexProfile[0]))?.strike ?? spot * 1.03;
 
   // Put/Call Ratio (by open interest)
   const totalCallOI = calls.reduce((sum, o) => sum + o.oi, 0);
