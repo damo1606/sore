@@ -26,7 +26,7 @@ function OIAccumulationTable({ data }: { data: Heatmap2DData }) {
       const bias = totalOI > 0 ? ((d.callOI - d.putOI) / totalOI) * 100 : 0;
       return { strike, callOI: d.callOI, putOI: d.putOI, totalOI, pcr, bias, gex: d.gex };
     })
-    .sort((a, b) => b.totalOI - a.totalOI);
+    .sort((a, b) => b.strike - a.strike);
 
   const maxOI = rows[0]?.totalOI ?? 1;
 
@@ -86,13 +86,13 @@ function OIAccumulationTable({ data }: { data: Heatmap2DData }) {
                 <td className="py-2 px-3 font-semibold text-gray-900">
                   {(row.totalOI / 1000).toFixed(1)}k
                 </td>
-                <td className="py-2 px-3 text-accent font-semibold">
+                <td className="py-2 px-3 text-gray-900 font-semibold">
                   {(row.callOI / 1000).toFixed(1)}k
                 </td>
-                <td className="py-2 px-3 text-danger font-semibold">
+                <td className="py-2 px-3 text-gray-900 font-semibold">
                   {(row.putOI / 1000).toFixed(1)}k
                 </td>
-                <td className="py-2 px-3 text-gray-700">
+                <td className="py-2 px-3 text-gray-900">
                   {row.pcr.toFixed(2)}
                 </td>
                 <td className="py-2 px-3">
@@ -113,7 +113,7 @@ function OIAccumulationTable({ data }: { data: Heatmap2DData }) {
                 <td className={`py-2 px-3 font-bold tracking-wider ${biasColor(row.bias)}`}>
                   {biasLabel(row.bias)}
                 </td>
-                <td className={`py-2 px-3 font-semibold ${row.gex >= 0 ? "text-accent" : "text-danger"}`}>
+                <td className="py-2 px-3 font-semibold text-gray-900">
                   {row.gex >= 0 ? "+" : ""}${(row.gex / 1e9).toFixed(2)}B
                 </td>
               </tr>
