@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Metodologia1 from "@/components/Metodologia1";
 import Metodologia2 from "@/components/Metodologia2";
 import Metodologia3 from "@/components/Metodologia3";
@@ -53,13 +53,51 @@ const METHODOLOGY_INTROS: Record<Tab, { what: string; how: string; output: strin
   },
 };
 
+interface SearchResult { symbol: string; name: string; exchange: string; type: string; }
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("METODOLOGÍA 1");
   const [ticker, setTicker] = useState("SPY");
+  const [query, setQuery] = useState("SPY");
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [expiration, setExpiration] = useState("");
   const [expirations, setExpirations] = useState<string[]>([]);
   const [analyzeKey, setAnalyzeKey] = useState(0);
   const [loadingExps, setLoadingExps] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search
+  useEffect(() => {
+    if (query.length < 1) { setSuggestions([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const json = await res.json();
+        setSuggestions(json.results ?? []);
+        setShowSuggestions(true);
+      } catch { setSuggestions([]); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function selectSuggestion(result: SearchResult) {
+    setTicker(result.symbol);
+    setQuery(result.symbol);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
 
   async function handleAnalyze() {
     if (!ticker.trim()) return;
@@ -95,16 +133,44 @@ export default function Home() {
       <div className="border-b-2 border-accent px-4 sm:px-6 py-3 bg-surface sticky top-[53px] sm:top-[57px] z-40 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           <div className="flex gap-2">
-            <input
-              className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm uppercase tracking-widest w-24 focus:outline-none focus:border-accent transition-colors"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-              placeholder="TICKER"
-              maxLength={10}
-            />
+            {/* Search input with autocomplete */}
+            <div ref={searchRef} className="relative">
+              <input
+                className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm uppercase tracking-widest w-48 sm:w-56 focus:outline-none focus:border-accent transition-colors"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value.toUpperCase());
+                  setTicker(e.target.value.toUpperCase());
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { setShowSuggestions(false); handleAnalyze(); }
+                  if (e.key === "Escape") setShowSuggestions(false);
+                }}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                placeholder="TICKER O EMPRESA"
+                maxLength={40}
+              />
+              {/* Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-border shadow-lg max-h-64 overflow-y-auto">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.symbol}
+                      onMouseDown={() => selectSuggestion(s)}
+                      className="w-full flex items-center justify-between px-3 py-2 hover:bg-surface text-left border-b border-border last:border-0 gap-3"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-bold text-accent shrink-0">{s.symbol}</span>
+                        <span className="text-xs text-gray-600 truncate">{s.name}</span>
+                      </div>
+                      <span className="text-[10px] text-muted shrink-0">{s.exchange}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
-              onClick={handleAnalyze}
+              onClick={() => { setShowSuggestions(false); handleAnalyze(); }}
               disabled={loadingExps}
               className="bg-accent text-white px-5 py-2 text-sm font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity flex-1 sm:flex-none"
             >
