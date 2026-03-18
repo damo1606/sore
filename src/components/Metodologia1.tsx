@@ -20,10 +20,12 @@ export default function Metodologia1({
   ticker,
   expiration,
   analyzeKey,
+  companyName = "",
 }: {
   ticker: string;
   expiration: string;
   analyzeKey: number;
+  companyName?: string;
 }) {
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -109,6 +111,7 @@ export default function Metodologia1({
             <div className="border-l-2 border-border pl-4 sm:pl-8">
               <div className="text-xs text-muted tracking-widest mb-1">TICKER</div>
               <div className="text-xl sm:text-3xl font-bold text-accent">{data.ticker}</div>
+              {companyName && <div className="text-xs text-muted mt-1">{companyName}</div>}
             </div>
           </div>
 

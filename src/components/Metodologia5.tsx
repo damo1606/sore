@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import type { Analysis5Result, SRLevel, SignalComponent, ScoredStrike } from "@/lib/gex5";
+import type { Analysis6Result } from "@/lib/gex6";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, Cell, ResponsiveContainer,
@@ -235,10 +236,12 @@ export default function Metodologia5({
   ticker,
   expiration,
   analyzeKey,
+  companyName = "",
 }: {
   ticker: string;
   expiration: string;
   analyzeKey: number;
+  companyName?: string;
 }) {
   const [data, setData] = useState<Analysis5Result | null>(null);
   const [loading, setLoading] = useState(false);
@@ -363,6 +366,7 @@ export default function Metodologia5({
               <div className="border-l-2 border-border pl-8">
                 <div className="text-xs text-muted tracking-widest mb-1">TICKER</div>
                 <div className="text-3xl font-bold text-accent">{data.ticker}</div>
+                {companyName && <div className="text-xs text-muted mt-1">{companyName}</div>}
               </div>
             </div>
             <div>

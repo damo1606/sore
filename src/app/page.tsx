@@ -58,6 +58,7 @@ interface SearchResult { symbol: string; name: string; exchange: string; type: s
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("METODOLOGÍA 1");
   const [ticker, setTicker] = useState("SPY");
+  const [companyName, setCompanyName] = useState("");
   const [query, setQuery] = useState("SPY");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -94,6 +95,7 @@ export default function Home() {
 
   function selectSuggestion(result: SearchResult) {
     setTicker(result.symbol);
+    setCompanyName(result.name);
     setQuery(result.symbol);
     setSuggestions([]);
     setShowSuggestions(false);
@@ -279,22 +281,22 @@ export default function Home() {
 
       {/* Content — always mounted to preserve data state when switching tabs */}
       <div className={activeTab === "METODOLOGÍA 1" ? "" : "hidden"}>
-        <Metodologia1 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+        <Metodologia1 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
       </div>
       <div className={activeTab === "METODOLOGÍA 2" ? "" : "hidden"}>
-        <Metodologia2 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+        <Metodologia2 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
       </div>
       <div className={activeTab === "METODOLOGÍA 3" ? "" : "hidden"}>
-        <Metodologia3 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+        <Metodologia3 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
       </div>
       <div className={activeTab === "METODOLOGÍA 4" ? "" : "hidden"}>
-        <Metodologia4 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+        <Metodologia4 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
       </div>
       <div className={activeTab === "METODOLOGÍA 5" ? "" : "hidden"}>
-        <Metodologia5 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+        <Metodologia5 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
       </div>
       <div className={activeTab === "METODOLOGÍA 6" ? "" : "hidden"}>
-        <Metodologia6 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} />
+        <Metodologia6 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
       </div>
     </div>
   );

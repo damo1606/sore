@@ -225,10 +225,12 @@ export default function Metodologia6({
   ticker,
   expiration,
   analyzeKey,
+  companyName = "",
 }: {
   ticker: string;
   expiration: string;
   analyzeKey: number;
+  companyName?: string;
 }) {
   const [data, setData]     = useState<Analysis6Result | null>(null);
   const [data5, setData5]   = useState<Analysis5Result | null>(null);
@@ -315,6 +317,9 @@ export default function Metodologia6({
               <div className="col-span-2 sm:col-span-1">
                 <div className="text-[10px] text-muted tracking-widest mb-1">RÉGIMEN DE MERCADO</div>
                 <div className={`text-2xl sm:text-5xl font-black tracking-widest ${color}`}>{data.regime}</div>
+                {companyName && ticker && (
+                  <div className="text-xs text-muted mt-1">{ticker} · {companyName}</div>
+                )}
               </div>
               <div className="sm:border-l-2 sm:border-border sm:pl-8">
                 <div className="text-[10px] text-muted tracking-widest mb-1">VIX</div>

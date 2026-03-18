@@ -19,9 +19,19 @@ export async function GET(request: NextRequest) {
   if (!q || q.length < 1) return NextResponse.json({ results: [] });
 
   try {
-    // Try v1/finance/search first
-    const url1 = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0&enableFuzzyQuery=true&enableNavLinks=false`;
-    const res1 = await fetch(url1, { headers: HEADERS, cache: "no-store" });
+    // Get crumb + cookie for authenticated requests
+    const res0 = await fetch("https://fc.yahoo.com", { headers: HEADERS, redirect: "follow" });
+    const setCookie = res0.headers.get("set-cookie") ?? "";
+    const cookie = setCookie.split(",").map((c) => c.split(";")[0].trim()).join("; ");
+    const crumbRes = await fetch("https://query2.finance.yahoo.com/v1/test/getcrumb", {
+      headers: { ...HEADERS, Cookie: cookie },
+    });
+    const crumb = crumbRes.ok ? await crumbRes.text() : "";
+    const authHeaders = { ...HEADERS, Cookie: cookie };
+
+    // v1/finance/search with auth
+    const url1 = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0&enableFuzzyQuery=true&enableNavLinks=false${crumb ? `&crumb=${crumb}` : ""}`;
+    const res1 = await fetch(url1, { headers: authHeaders, cache: "no-store" });
 
     if (res1.ok) {
       const json = await res1.json();
@@ -38,9 +48,9 @@ export async function GET(request: NextRequest) {
       if (results.length > 0) return NextResponse.json({ results });
     }
 
-    // Fallback: autocomplete endpoint (no auth required)
+    // Fallback: autocomplete endpoint
     const url2 = `https://query1.finance.yahoo.com/v6/finance/autocomplete?query=${encodeURIComponent(q)}&lang=en&region=US`;
-    const res2 = await fetch(url2, { headers: HEADERS, cache: "no-store" });
+    const res2 = await fetch(url2, { headers: authHeaders, cache: "no-store" });
     if (!res2.ok) return NextResponse.json({ results: [] });
 
     const json2 = await res2.json();
