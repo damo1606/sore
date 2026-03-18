@@ -78,111 +78,134 @@ export default function Home() {
     setAnalyzeKey((k) => k + 1);
   }
 
+  const [introOpen, setIntroOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-bg text-gray-900">
+
       {/* Header */}
-      <header className="border-b border-border px-6 py-4 flex items-center gap-4 bg-bg sticky top-0 z-50 shadow-sm">
-        <span className="text-accent font-bold text-2xl tracking-[0.3em]">SORE</span>
-        <span className="text-muted text-sm tracking-widest hidden sm:block">
-          INSTITUTIONAL OPTIONS FLOW
-        </span>
+      <header className="border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between bg-bg sticky top-0 z-50 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="text-accent font-bold text-xl sm:text-2xl tracking-[0.3em]">SORE</span>
+          <span className="text-muted text-xs tracking-widest hidden sm:block">INSTITUTIONAL OPTIONS FLOW</span>
+        </div>
       </header>
 
-      {/* Global Controls — ticker + expiration together */}
-      <div className="border-b-2 border-accent px-6 py-3 flex items-center gap-3 bg-surface flex-wrap sticky top-[73px] z-40 shadow-sm">
-        <input
-          className="bg-bg border border-border text-gray-900 px-4 py-2 text-base uppercase tracking-widest w-28 focus:outline-none focus:border-accent transition-colors"
-          value={ticker}
-          onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-          placeholder="TICKER"
-          maxLength={10}
-        />
+      {/* Global Controls */}
+      <div className="border-b-2 border-accent px-4 sm:px-6 py-3 bg-surface sticky top-[53px] sm:top-[57px] z-40 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <div className="flex gap-2">
+            <input
+              className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm uppercase tracking-widest w-24 focus:outline-none focus:border-accent transition-colors"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+              placeholder="TICKER"
+              maxLength={10}
+            />
+            <button
+              onClick={handleAnalyze}
+              disabled={loadingExps}
+              className="bg-accent text-white px-5 py-2 text-sm font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity flex-1 sm:flex-none"
+            >
+              {loadingExps ? "..." : "ANALIZAR"}
+            </button>
+          </div>
 
-        {expirations.length > 0 && (
-          <select
-            className="bg-bg border border-border text-gray-900 px-3 py-2 text-base focus:outline-none focus:border-accent transition-colors"
-            value={expiration}
-            onChange={(e) => setExpiration(e.target.value)}
-          >
-            {Object.entries(
-              expirations.reduce<Record<string, string[]>>((acc, exp) => {
-                const label = new Date(exp + "T12:00:00").toLocaleString("en-US", {
-                  month: "long", year: "numeric",
-                });
-                if (!acc[label]) acc[label] = [];
-                acc[label].push(exp);
-                return acc;
-              }, {})
-            ).map(([monthLabel, dates]) => (
-              <optgroup key={monthLabel} label={monthLabel}>
-                {dates.map((exp) => {
-                  const d = new Date(exp + "T12:00:00");
-                  const dow = d.getDay();
-                  const day = d.getDate();
-                  const mon = d.getMonth();
-                  const isThirdFri = dow === 5 && day >= 15 && day <= 21;
-                  const isQuart = isThirdFri && [2, 5, 8, 11].includes(mon);
-                  const isMon = isThirdFri && !isQuart;
-                  const suffix = isQuart ? " ★ TRIMESTRAL" : isMon ? " · MENSUAL" : "";
-                  return <option key={exp} value={exp}>{exp}{suffix}</option>;
-                })}
-              </optgroup>
-            ))}
-          </select>
-        )}
+          {expirations.length > 0 && (
+            <select
+              className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors w-full sm:w-auto"
+              value={expiration}
+              onChange={(e) => setExpiration(e.target.value)}
+            >
+              {Object.entries(
+                expirations.reduce<Record<string, string[]>>((acc, exp) => {
+                  const label = new Date(exp + "T12:00:00").toLocaleString("en-US", {
+                    month: "long", year: "numeric",
+                  });
+                  if (!acc[label]) acc[label] = [];
+                  acc[label].push(exp);
+                  return acc;
+                }, {})
+              ).map(([monthLabel, dates]) => (
+                <optgroup key={monthLabel} label={monthLabel}>
+                  {dates.map((exp) => {
+                    const d = new Date(exp + "T12:00:00");
+                    const dow = d.getDay();
+                    const day = d.getDate();
+                    const mon = d.getMonth();
+                    const isThirdFri = dow === 5 && day >= 15 && day <= 21;
+                    const isQuart = isThirdFri && [2, 5, 8, 11].includes(mon);
+                    const isMon = isThirdFri && !isQuart;
+                    const suffix = isQuart ? " ★ TRIM" : isMon ? " · MEN" : "";
+                    return <option key={exp} value={exp}>{exp}{suffix}</option>;
+                  })}
+                </optgroup>
+              ))}
+            </select>
+          )}
 
-        <button
-          onClick={handleAnalyze}
-          disabled={loadingExps}
-          className="bg-accent text-white px-6 py-2 text-base font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
-        >
-          {loadingExps ? "..." : "ANALYZE"}
-        </button>
-
-        {analyzeKey > 0 && (
-          <span className="text-xs text-muted">
-            {ticker}{expiration ? ` · ${expiration}` : ""} · {expirations.length} vencimientos
-          </span>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-border px-6 flex gap-0 bg-bg">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 text-sm font-bold tracking-widest border-b-2 transition-colors flex flex-col items-start ${
-              activeTab === tab
-                ? "border-accent text-accent"
-                : "border-transparent text-muted hover:text-gray-900"
-            }`}
-          >
-            <span>{tab}</span>
-            <span className="text-[9px] font-normal tracking-wider opacity-60 hidden sm:block">
-              {TAB_DESCRIPTIONS[tab]}
+          {analyzeKey > 0 && (
+            <span className="text-xs text-muted hidden sm:block">
+              {ticker}{expiration ? ` · ${expiration}` : ""} · {expirations.length} vencimientos
             </span>
-          </button>
-        ))}
+          )}
+        </div>
       </div>
 
-      {/* Methodology intro strip */}
+      {/* Tabs — horizontally scrollable on mobile */}
+      <div className="border-b border-border bg-bg overflow-x-auto">
+        <div className="flex min-w-max px-2 sm:px-6">
+          {TABS.map((tab, i) => {
+            const shortLabel = `M${i + 1}`;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 sm:px-5 py-3 text-xs sm:text-sm font-bold tracking-widest border-b-2 transition-colors flex flex-col items-center sm:items-start shrink-0 ${
+                  activeTab === tab
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted hover:text-gray-900"
+                }`}
+              >
+                <span className="sm:hidden">{shortLabel}</span>
+                <span className="hidden sm:block">{tab}</span>
+                <span className="text-[9px] font-normal tracking-wider opacity-60 hidden sm:block">
+                  {TAB_DESCRIPTIONS[tab]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Methodology intro — collapsible on mobile */}
       {(() => {
         const intro = METHODOLOGY_INTROS[activeTab];
         return (
-          <div className="px-6 py-4 bg-surface border-b border-border grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ MIDE</div>
-              <div className="text-xs text-gray-700 leading-relaxed">{intro.what}</div>
-            </div>
-            <div>
-              <div className="text-[9px] text-muted tracking-widest font-bold mb-1">CÓMO FUNCIONA</div>
-              <div className="text-xs text-gray-700 leading-relaxed">{intro.how}</div>
-            </div>
-            <div>
-              <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ PRODUCE</div>
-              <div className="text-xs text-gray-700 leading-relaxed">{intro.output}</div>
+          <div className="bg-surface border-b border-border">
+            {/* Mobile toggle */}
+            <button
+              className="sm:hidden w-full flex items-center justify-between px-4 py-2 text-xs text-muted tracking-widest"
+              onClick={() => setIntroOpen((v) => !v)}
+            >
+              <span>¿QUÉ MIDE {activeTab.replace("METODOLOGÍA", "M")}?</span>
+              <span>{introOpen ? "▲" : "▼"}</span>
+            </button>
+            {/* Content — always visible on sm+, collapsible on mobile */}
+            <div className={`${introOpen ? "block" : "hidden"} sm:block px-4 sm:px-6 pb-4 pt-1 sm:pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3`}>
+              <div>
+                <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ MIDE</div>
+                <div className="text-xs text-gray-700 leading-relaxed">{intro.what}</div>
+              </div>
+              <div>
+                <div className="text-[9px] text-muted tracking-widest font-bold mb-1">CÓMO FUNCIONA</div>
+                <div className="text-xs text-gray-700 leading-relaxed">{intro.how}</div>
+              </div>
+              <div>
+                <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ PRODUCE</div>
+                <div className="text-xs text-gray-700 leading-relaxed">{intro.output}</div>
+              </div>
             </div>
           </div>
         );

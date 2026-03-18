@@ -297,53 +297,54 @@ export default function Metodologia6({
       )}
 
       {data && !loading && (
-        <main className="p-6 space-y-6">
+        <main className="p-4 sm:p-6 space-y-4 sm:space-y-6">
 
           {/* ── REGIME HERO ──────────────────────────────────────────────────── */}
-          <div className={`bg-card border-2 ${border} p-8`}>
+          <div className={`bg-card border-2 ${border} p-4 sm:p-8`}>
 
             {/* Signal suspended banner */}
             {data.signalSuspended && (
-              <div className="bg-danger text-white px-4 py-3 mb-6 text-sm font-bold tracking-widest flex items-center gap-3">
-                <span className="text-xl">⚠</span>
+              <div className="bg-danger text-white px-3 py-2 mb-4 text-xs font-bold tracking-widest flex items-center gap-2">
+                <span>⚠</span>
                 <span>SEÑALES GEX SUSPENDIDAS — {data.suspendedReason}</span>
               </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-8 mb-6">
-              <div>
-                <div className="text-xs text-muted tracking-widest mb-2">RÉGIMEN DE MERCADO</div>
-                <div className={`text-5xl font-black tracking-widest ${color}`}>{data.regime}</div>
+            {/* Top: regime + VIX as 2-col grid on mobile */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-4 sm:gap-8 mb-6">
+              <div className="col-span-2 sm:col-span-1">
+                <div className="text-[10px] text-muted tracking-widest mb-1">RÉGIMEN DE MERCADO</div>
+                <div className={`text-2xl sm:text-5xl font-black tracking-widest ${color}`}>{data.regime}</div>
               </div>
-              <div className="border-l-2 border-border pl-8">
-                <div className="text-xs text-muted tracking-widest mb-1">VIX</div>
-                <div className={`text-5xl font-bold ${color}`}>{data.vix.toFixed(1)}</div>
+              <div className="sm:border-l-2 sm:border-border sm:pl-8">
+                <div className="text-[10px] text-muted tracking-widest mb-1">VIX</div>
+                <div className={`text-3xl sm:text-5xl font-bold ${color}`}>{data.vix.toFixed(1)}</div>
               </div>
-              <div className="border-l-2 border-border pl-8">
-                <div className="text-xs text-muted tracking-widest mb-1">VIX 3M</div>
-                <div className="text-3xl font-bold text-subtle">{data.vix3m.toFixed(1)}</div>
+              <div className="sm:border-l-2 sm:border-border sm:pl-8">
+                <div className="text-[10px] text-muted tracking-widest mb-1">VIX 3M</div>
+                <div className="text-2xl sm:text-3xl font-bold text-subtle">{data.vix3m.toFixed(1)}</div>
               </div>
-              <div className="border-l-2 border-border pl-8">
-                <div className="text-xs text-muted tracking-widest mb-1">VIX/VIX3M</div>
-                <div className={`text-3xl font-bold ${data.vixRatio > 1 ? "text-danger" : "text-accent"}`}>
+              <div className="sm:border-l-2 sm:border-border sm:pl-8">
+                <div className="text-[10px] text-muted tracking-widest mb-1">VIX/VIX3M</div>
+                <div className={`text-2xl sm:text-3xl font-bold ${data.vixRatio > 1 ? "text-danger" : "text-accent"}`}>
                   {data.vixRatio.toFixed(2)}
                 </div>
               </div>
-              <div className="border-l-2 border-border pl-8">
-                <div className="text-xs text-muted tracking-widest mb-1">CAMBIO 1D</div>
-                <div className={`text-3xl font-bold ${data.vixChange1d >= 0 ? "text-danger" : "text-accent"}`}>
+              <div className="sm:border-l-2 sm:border-border sm:pl-8">
+                <div className="text-[10px] text-muted tracking-widest mb-1">CAMBIO 1D</div>
+                <div className={`text-2xl sm:text-3xl font-bold ${data.vixChange1d >= 0 ? "text-danger" : "text-accent"}`}>
                   {data.vixChange1d >= 0 ? "+" : ""}{data.vixChange1d.toFixed(1)}%
                 </div>
               </div>
-              <div className="border-l-2 border-border pl-8">
-                <div className="text-xs text-muted tracking-widest mb-1">CAMBIO 5D</div>
-                <div className={`text-3xl font-bold ${data.vixChange5d >= 0 ? "text-danger" : "text-accent"}`}>
+              <div className="sm:border-l-2 sm:border-border sm:pl-8">
+                <div className="text-[10px] text-muted tracking-widest mb-1">CAMBIO 5D</div>
+                <div className={`text-2xl sm:text-3xl font-bold ${data.vixChange5d >= 0 ? "text-danger" : "text-accent"}`}>
                   {data.vixChange5d >= 0 ? "+" : ""}{data.vixChange5d.toFixed(1)}%
                 </div>
               </div>
-              <div className="border-l-2 border-border pl-8">
-                <div className="text-xs text-muted tracking-widest mb-1">VELOCIDAD</div>
-                <div className={`text-xl font-bold tracking-wider ${data.vixVelocity === "ACELERANDO" ? "text-danger" : data.vixVelocity === "DESACELERANDO" ? "text-accent" : "text-subtle"}`}>
+              <div className="sm:border-l-2 sm:border-border sm:pl-8">
+                <div className="text-[10px] text-muted tracking-widest mb-1">VELOCIDAD</div>
+                <div className={`text-base sm:text-xl font-bold tracking-wider ${data.vixVelocity === "ACELERANDO" ? "text-danger" : data.vixVelocity === "DESACELERANDO" ? "text-accent" : "text-subtle"}`}>
                   {data.vixVelocity}
                 </div>
               </div>
@@ -351,9 +352,9 @@ export default function Metodologia6({
 
             {/* VIX Gauge */}
             <div>
-              <div className="flex justify-between text-xs text-muted mb-1">
+              <div className="flex justify-between text-[10px] text-muted mb-1">
                 <span>0 · CALMA</span>
-                <span>COMPRESIÓN → TRANSICIÓN → EXPANSIÓN → PÁNICO → CRISIS</span>
+                <span className="hidden sm:block">COMPRESIÓN → TRANSICIÓN → EXPANSIÓN → PÁNICO → CRISIS</span>
                 <span>60+</span>
               </div>
               <VixGauge vix={data.vix} />

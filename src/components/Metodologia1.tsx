@@ -90,25 +90,25 @@ export default function Metodologia1({
       )}
 
       {data && !loading && (
-        <main className="p-6 space-y-6">
-          <div className="flex flex-wrap items-end gap-8">
+        <main className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+          <div className="flex flex-wrap items-end gap-4 sm:gap-8">
             <div>
-              <div className="text-sm text-muted tracking-widest mb-1">PRECIO SPOT</div>
-              <div className="text-6xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
+              <div className="text-xs text-muted tracking-widest mb-1">PRECIO SPOT</div>
+              <div className="text-4xl sm:text-6xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
             </div>
-            <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">RÉGIMEN GAMMA</div>
-              <div className={`text-3xl font-bold tracking-wide ${isPositiveGamma ? "text-accent" : "text-danger"}`}>
+            <div className="border-l-2 border-border pl-4 sm:pl-8">
+              <div className="text-xs text-muted tracking-widest mb-1">RÉGIMEN GAMMA</div>
+              <div className={`text-xl sm:text-3xl font-bold tracking-wide ${isPositiveGamma ? "text-accent" : "text-danger"}`}>
                 {isPositiveGamma ? "▲ GAMMA POSITIVO" : "▼ GAMMA NEGATIVO"}
               </div>
             </div>
-            <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">VENCIMIENTO</div>
-              <div className="text-3xl font-bold text-subtle">{data.expiration}</div>
+            <div className="border-l-2 border-border pl-4 sm:pl-8">
+              <div className="text-xs text-muted tracking-widest mb-1">VENCIMIENTO</div>
+              <div className="text-xl sm:text-3xl font-bold text-subtle">{data.expiration}</div>
             </div>
-            <div className="border-l-2 border-border pl-8">
-              <div className="text-sm text-muted tracking-widest mb-1">TICKER</div>
-              <div className="text-3xl font-bold text-accent">{data.ticker}</div>
+            <div className="border-l-2 border-border pl-4 sm:pl-8">
+              <div className="text-xs text-muted tracking-widest mb-1">TICKER</div>
+              <div className="text-xl sm:text-3xl font-bold text-accent">{data.ticker}</div>
             </div>
           </div>
 
