@@ -5,6 +5,126 @@ import type { Heatmap2DData } from "@/app/api/heatmap2d/route";
 import GexHeatmap2D from "@/components/GexHeatmap2D";
 import SkewPanel from "@/components/SkewPanel";
 
+// ─── OI Accumulation Table ────────────────────────────────────────────────────
+function OIAccumulationTable({ data }: { data: Heatmap2DData }) {
+  // Aggregate callOI + putOI + gex per strike across all expirations
+  const strikeMap = new Map<number, { callOI: number; putOI: number; gex: number }>();
+  for (const cell of data.cells) {
+    const e = strikeMap.get(cell.strike) ?? { callOI: 0, putOI: 0, gex: 0 };
+    strikeMap.set(cell.strike, {
+      callOI: e.callOI + cell.callOI,
+      putOI:  e.putOI  + cell.putOI,
+      gex:    e.gex    + cell.gex,
+    });
+  }
+
+  const rows = Array.from(strikeMap.entries())
+    .map(([strike, d]) => {
+      const totalOI = d.callOI + d.putOI;
+      const pcr = d.callOI > 0 ? d.putOI / d.callOI : 0;
+      // bias: +100 = all calls (alcista), -100 = all puts (bajista)
+      const bias = totalOI > 0 ? ((d.callOI - d.putOI) / totalOI) * 100 : 0;
+      return { strike, callOI: d.callOI, putOI: d.putOI, totalOI, pcr, bias, gex: d.gex };
+    })
+    .sort((a, b) => b.totalOI - a.totalOI);
+
+  const maxOI = rows[0]?.totalOI ?? 1;
+
+  // Color based on bias intensity
+  function rowColor(bias: number, intensity: number): string {
+    const alpha = Math.round(intensity * 0.85 * 255).toString(16).padStart(2, "0");
+    if (bias > 15)  return `#16a34a${alpha}`; // green — calls dominan
+    if (bias < -15) return `#dc2626${alpha}`; // red   — puts dominan
+    return `#6b728022`;                        // neutral
+  }
+
+  function biasLabel(bias: number): string {
+    if (bias > 50)  return "CALLS FUERTES";
+    if (bias > 15)  return "CALLS";
+    if (bias < -50) return "PUTS FUERTES";
+    if (bias < -15) return "PUTS";
+    return "NEUTRAL";
+  }
+
+  function biasColor(bias: number): string {
+    if (bias > 15)  return "text-accent";
+    if (bias < -15) return "text-danger";
+    return "text-muted";
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="border-b-2 border-border text-left">
+            <th className="py-2 px-3 text-muted tracking-wider font-semibold">STRIKE</th>
+            <th className="py-2 px-3 text-muted tracking-wider font-semibold">OI TOTAL</th>
+            <th className="py-2 px-3 text-accent tracking-wider font-semibold">CALLS OI</th>
+            <th className="py-2 px-3 text-danger tracking-wider font-semibold">PUTS OI</th>
+            <th className="py-2 px-3 text-muted tracking-wider font-semibold">PCR</th>
+            <th className="py-2 px-3 text-muted tracking-wider font-semibold">ACUMULACIÓN</th>
+            <th className="py-2 px-3 text-muted tracking-wider font-semibold">SESGO</th>
+            <th className="py-2 px-3 text-muted tracking-wider font-semibold">GEX</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const intensity = row.totalOI / maxOI;
+            const isSupport    = row.strike === data.support;
+            const isResistance = row.strike === data.resistance;
+            return (
+              <tr
+                key={row.strike}
+                className="border-b border-border hover:bg-surface transition-colors"
+                style={{ backgroundColor: rowColor(row.bias, intensity) }}
+              >
+                <td className="py-2 px-3 font-bold text-gray-900">
+                  ${row.strike.toFixed(0)}
+                  {isSupport    && <span className="ml-2 text-[9px] text-accent font-bold tracking-wider">SOPORTE</span>}
+                  {isResistance && <span className="ml-2 text-[9px] text-danger font-bold tracking-wider">RESIST.</span>}
+                </td>
+                <td className="py-2 px-3 font-semibold text-gray-900">
+                  {(row.totalOI / 1000).toFixed(1)}k
+                </td>
+                <td className="py-2 px-3 text-accent font-semibold">
+                  {(row.callOI / 1000).toFixed(1)}k
+                </td>
+                <td className="py-2 px-3 text-danger font-semibold">
+                  {(row.putOI / 1000).toFixed(1)}k
+                </td>
+                <td className="py-2 px-3 text-gray-700">
+                  {row.pcr.toFixed(2)}
+                </td>
+                <td className="py-2 px-3">
+                  {/* OI bar */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 h-3 bg-surface border border-border rounded-sm overflow-hidden">
+                      <div
+                        className="h-full rounded-sm"
+                        style={{
+                          width: `${intensity * 100}%`,
+                          backgroundColor: row.bias > 15 ? "#16a34a" : row.bias < -15 ? "#dc2626" : "#6b7280",
+                        }}
+                      />
+                    </div>
+                    <span className="text-muted">{(intensity * 100).toFixed(0)}%</span>
+                  </div>
+                </td>
+                <td className={`py-2 px-3 font-bold tracking-wider ${biasColor(row.bias)}`}>
+                  {biasLabel(row.bias)}
+                </td>
+                <td className={`py-2 px-3 font-semibold ${row.gex >= 0 ? "text-accent" : "text-danger"}`}>
+                  {row.gex >= 0 ? "+" : ""}${(row.gex / 1e9).toFixed(2)}B
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function Metodologia4({
   ticker,
   expiration,
@@ -106,6 +226,17 @@ export default function Metodologia4({
               Color = GEX · Barra azul = OI · Barra naranja/azul = Skew IV
             </div>
             <GexHeatmap2D data={data} />
+          </div>
+
+          {/* OI Accumulation Table */}
+          <div className="bg-card border border-border p-6">
+            <div className="text-sm text-muted tracking-widest mb-1 font-semibold">
+              ACUMULACIÓN DE OI POR STRIKE — TODOS LOS VENCIMIENTOS
+            </div>
+            <div className="text-xs text-muted mb-5">
+              Verde = calls dominan (presión alcista) · Rojo = puts dominan (presión bajista) · Intensidad = tamaño relativo del OI
+            </div>
+            <OIAccumulationTable data={data} />
           </div>
 
           {/* Skew Panel */}

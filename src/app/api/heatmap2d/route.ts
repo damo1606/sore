@@ -18,6 +18,8 @@ export interface Heatmap2DCell {
   expiration: string;
   gex: number;
   oi: number;
+  callOI: number;
+  putOI: number;
   skew: number;       // IV_put(K) − IV_call(K) at same strike
 }
 
@@ -117,7 +119,7 @@ function computeCells(
     // Per-strike skew: IV_put − IV_call at same strike
     const skew = putIV > 0 && callIV > 0 ? putIV - callIV : 0;
 
-    cells.push({ strike, expiration, gex, oi: totalOI, skew });
+    cells.push({ strike, expiration, gex, oi: totalOI, callOI, putOI, skew });
   }
 
   const skew25d = (best25Put && best25Call)
