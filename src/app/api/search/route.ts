@@ -19,24 +19,43 @@ export async function GET(request: NextRequest) {
   if (!q || q.length < 1) return NextResponse.json({ results: [] });
 
   try {
-    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0&enableFuzzyQuery=true&enableNavLinks=false`;
-    const res = await fetch(url, { headers: HEADERS, cache: "no-store" });
-    if (!res.ok) return NextResponse.json({ results: [] });
+    // Try v1/finance/search first
+    const url1 = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0&enableFuzzyQuery=true&enableNavLinks=false`;
+    const res1 = await fetch(url1, { headers: HEADERS, cache: "no-store" });
 
-    const json = await res.json();
-    const quotes = json?.quotes ?? [];
+    if (res1.ok) {
+      const json = await res1.json();
+      const quotes = json?.quotes ?? [];
+      const results: SearchResult[] = quotes
+        .filter((q: any) => ["EQUITY", "ETF", "INDEX"].includes(q.quoteType))
+        .map((q: any) => ({
+          symbol:   q.symbol ?? "",
+          name:     q.shortname ?? q.longname ?? q.symbol ?? "",
+          exchange: q.exchDisp ?? q.exchange ?? "",
+          type:     q.quoteType ?? "",
+        }))
+        .filter((r: SearchResult) => r.symbol);
+      if (results.length > 0) return NextResponse.json({ results });
+    }
 
-    const results: SearchResult[] = quotes
-      .filter((q: any) => ["EQUITY", "ETF", "INDEX"].includes(q.quoteType))
-      .map((q: any) => ({
-        symbol:   q.symbol ?? "",
-        name:     q.shortname ?? q.longname ?? q.symbol ?? "",
-        exchange: q.exchDisp ?? q.exchange ?? "",
-        type:     q.quoteType ?? "",
-      }))
-      .filter((r: SearchResult) => r.symbol);
+    // Fallback: autocomplete endpoint (no auth required)
+    const url2 = `https://query1.finance.yahoo.com/v6/finance/autocomplete?query=${encodeURIComponent(q)}&lang=en&region=US`;
+    const res2 = await fetch(url2, { headers: HEADERS, cache: "no-store" });
+    if (!res2.ok) return NextResponse.json({ results: [] });
 
-    return NextResponse.json({ results });
+    const json2 = await res2.json();
+    const items = json2?.ResultSet?.Result ?? [];
+    const results2: SearchResult[] = items
+      .filter((r: any) => r.symbol && !r.symbol.includes("="))
+      .slice(0, 8)
+      .map((r: any) => ({
+        symbol:   r.symbol ?? "",
+        name:     r.name ?? r.symbol ?? "",
+        exchange: r.exch ?? "",
+        type:     r.typeDisp ?? "",
+      }));
+
+    return NextResponse.json({ results: results2 });
   } catch {
     return NextResponse.json({ results: [] });
   }
