@@ -136,7 +136,7 @@ export default function Home() {
           }}
           className="text-xs text-white tracking-widest bg-red-600 hover:bg-red-700 transition-colors px-3 py-1 font-bold"
         >
-          SALIR
+          CERRAR SESIÓN
         </button>
       </header>
 
