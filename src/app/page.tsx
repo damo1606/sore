@@ -134,7 +134,7 @@ export default function Home() {
             await fetch("/api/auth/logout", { method: "POST" });
             window.location.href = "/login";
           }}
-          className="text-xs text-muted tracking-widest hover:text-gray-900 transition-colors border border-border px-3 py-1"
+          className="text-xs text-white tracking-widest bg-red-600 hover:bg-red-700 transition-colors px-3 py-1 font-bold"
         >
           SALIR
         </button>
