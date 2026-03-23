@@ -123,7 +123,7 @@ export default function Home() {
   // Auto logout: cierra sesión si el usuario vuelve a abrir la página (sessionStorage)
   // o si pasa 1 hora sin actividad
   useEffect(() => {
-    const IDLE_MS = 60 * 60 * 1000; // 1 hora
+    const IDLE_MS = 30 * 60 * 1000; // 30 minutos
 
     async function logout() {
       sessionStorage.removeItem("sore_active");
