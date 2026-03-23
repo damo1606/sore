@@ -22,6 +22,7 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
+      sessionStorage.setItem("sore_active", "1");
       router.push("/");
       router.refresh();
     } else {

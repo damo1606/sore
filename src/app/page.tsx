@@ -120,6 +120,40 @@ export default function Home() {
 
   const [introOpen, setIntroOpen] = useState(false);
 
+  // Auto logout: cierra sesión si el usuario vuelve a abrir la página (sessionStorage)
+  // o si pasa 1 hora sin actividad
+  useEffect(() => {
+    const IDLE_MS = 60 * 60 * 1000; // 1 hora
+
+    async function logout() {
+      sessionStorage.removeItem("sore_active");
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    }
+
+    // Si no hay flag de sesión activa (nueva pestaña / navegador cerrado) → logout
+    if (!sessionStorage.getItem("sore_active")) {
+      logout();
+      return;
+    }
+
+    // Timer de inactividad de 1 hora
+    let timer = setTimeout(logout, IDLE_MS);
+
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(logout, IDLE_MS);
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, resetTimer));
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, resetTimer));
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-bg text-gray-900">
 
