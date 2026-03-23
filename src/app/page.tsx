@@ -129,6 +129,15 @@ export default function Home() {
           <span className="text-accent font-bold text-xl sm:text-2xl tracking-[0.3em]">SORE</span>
           <span className="text-muted text-xs tracking-widest hidden sm:block">INSTITUTIONAL OPTIONS FLOW</span>
         </div>
+        <button
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+          className="text-xs text-muted tracking-widest hover:text-gray-900 transition-colors border border-border px-3 py-1"
+        >
+          SALIR
+        </button>
       </header>
 
       {/* Global Controls */}
