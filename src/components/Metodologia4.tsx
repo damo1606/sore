@@ -78,21 +78,21 @@ function OIAccumulationTable({ data }: { data: Heatmap2DData }) {
                 className="border-b border-border hover:bg-surface transition-colors"
                 style={{ backgroundColor: rowColor(row.bias, intensity) }}
               >
-                <td className="py-2 px-3 font-bold text-gray-900">
+                <td className="py-2 px-3 font-bold text-muted">
                   ${row.strike.toFixed(0)}
                   {isSupport    && <span className="ml-2 text-[9px] text-accent font-bold tracking-wider">SOPORTE</span>}
                   {isResistance && <span className="ml-2 text-[9px] text-danger font-bold tracking-wider">RESIST.</span>}
                 </td>
-                <td className="py-2 px-3 font-semibold text-gray-900">
+                <td className="py-2 px-3 font-semibold text-muted">
                   {(row.totalOI / 1000).toFixed(1)}k
                 </td>
-                <td className="py-2 px-3 text-gray-900 font-semibold">
+                <td className="py-2 px-3 text-muted font-semibold">
                   {(row.callOI / 1000).toFixed(1)}k
                 </td>
-                <td className="py-2 px-3 text-gray-900 font-semibold">
+                <td className="py-2 px-3 text-muted font-semibold">
                   {(row.putOI / 1000).toFixed(1)}k
                 </td>
-                <td className="py-2 px-3 text-gray-900">
+                <td className="py-2 px-3 text-muted">
                   {row.pcr.toFixed(2)}
                 </td>
                 <td className="py-2 px-3">
@@ -113,7 +113,7 @@ function OIAccumulationTable({ data }: { data: Heatmap2DData }) {
                 <td className={`py-2 px-3 font-bold tracking-wider ${biasColor(row.bias)}`}>
                   {biasLabel(row.bias)}
                 </td>
-                <td className="py-2 px-3 font-semibold text-gray-900">
+                <td className="py-2 px-3 font-semibold text-muted">
                   {row.gex >= 0 ? "+" : ""}${(row.gex / 1e9).toFixed(2)}B
                 </td>
               </tr>
@@ -199,7 +199,7 @@ export default function Metodologia4({
           <div className="flex flex-wrap items-end gap-4 sm:gap-8">
             <div>
               <div className="text-xs text-muted tracking-widest mb-1">PRECIO SPOT</div>
-              <div className="text-4xl sm:text-6xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
+              <div className="text-4xl sm:text-6xl font-bold text-muted">${data.spot.toFixed(2)}</div>
             </div>
             <div className="border-l-2 border-border pl-4 sm:pl-8">
               <div className="text-xs text-muted tracking-widest mb-1">TICKER</div>

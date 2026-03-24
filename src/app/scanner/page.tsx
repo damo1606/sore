@@ -54,7 +54,7 @@ function scoreColor(score: number): string {
   if (score >= 3) return "text-red-600 font-bold";
   if (score >= 2) return "text-orange-500 font-bold";
   if (score >= 1) return "text-yellow-600 font-semibold";
-  return "text-gray-600";
+  return "text-muted";
 }
 
 function scoreBadge(score: number): string {
@@ -154,7 +154,7 @@ export default function ScannerPage() {
     const active = sortKey === k;
     return (
       <th
-        className={`px-3 py-2 text-left text-[10px] tracking-widest font-bold cursor-pointer select-none whitespace-nowrap ${active ? "text-accent" : "text-muted"} hover:text-gray-900 transition-colors`}
+        className={`px-3 py-2 text-left text-[10px] tracking-widest font-bold cursor-pointer select-none whitespace-nowrap ${active ? "text-accent" : "text-muted"} hover:text-text transition-colors`}
         onClick={() => handleSort(k)}
       >
         {label} {active ? (sortAsc ? "▲" : "▼") : ""}
@@ -163,7 +163,7 @@ export default function ScannerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-gray-900">
+    <div className="min-h-screen bg-bg text-text">
       {/* Header */}
       <header className="border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between bg-bg sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
@@ -188,7 +188,7 @@ export default function ScannerPage() {
 
       {/* Live Prices Bar */}
       {Object.keys(livePrices).length > 0 && (
-        <div className="bg-gray-900 px-4 sm:px-6 py-2 flex gap-4 overflow-x-auto items-center">
+        <div className="bg-card px-4 sm:px-6 py-2 flex gap-4 overflow-x-auto items-center">
           {Object.entries(livePrices).map(([ticker, data]) => (
             <div key={ticker} className="flex items-center gap-1.5 shrink-0">
               <span className="text-xs font-bold text-white tracking-widest">{ticker}</span>
@@ -198,7 +198,7 @@ export default function ScannerPage() {
               </span>
             </div>
           ))}
-          <span className="text-[9px] text-gray-500 ml-auto shrink-0 tracking-widest">
+          <span className="text-[9px] text-muted ml-auto shrink-0 tracking-widest">
             ● LIVE · {lastPrice}
           </span>
         </div>
@@ -208,15 +208,15 @@ export default function ScannerPage() {
       <div className="bg-surface border-b border-border px-4 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ DETECTA</div>
-          <div className="text-xs text-gray-700 leading-relaxed">Strikes donde el Open Interest es estadísticamente anómalo — concentraciones inusuales de posicionamiento institucional.</div>
+          <div className="text-xs text-subtle leading-relaxed">Strikes donde el Open Interest es estadísticamente anómalo — concentraciones inusuales de posicionamiento institucional.</div>
         </div>
         <div>
           <div className="text-[9px] text-muted tracking-widest font-bold mb-1">CÓMO FUNCIONA</div>
-          <div className="text-xs text-gray-700 leading-relaxed">Z-score de OI por strike + ratio Volumen/OI (actividad intradiaria). Score ponderado: OI z-score 50%, Vol/OI 35%, IV 15%.</div>
+          <div className="text-xs text-subtle leading-relaxed">Z-score de OI por strike + ratio Volumen/OI (actividad intradiaria). Score ponderado: OI z-score 50%, Vol/OI 35%, IV 15%.</div>
         </div>
         <div>
           <div className="text-[9px] text-muted tracking-widest font-bold mb-1">CÓMO LEERLO</div>
-          <div className="text-xs text-gray-700 leading-relaxed">Score &gt; 3 = anomalía fuerte (rojo). Score &gt; 2 = presión institucional alta (naranja). Vol/OI &gt; 1 = más contratos operados hoy que OI existente.</div>
+          <div className="text-xs text-subtle leading-relaxed">Score &gt; 3 = anomalía fuerte (rojo). Score &gt; 2 = presión institucional alta (naranja). Vol/OI &gt; 1 = más contratos operados hoy que OI existente.</div>
         </div>
       </div>
 
@@ -225,7 +225,7 @@ export default function ScannerPage() {
         <div className="flex-1">
           <label className="text-[9px] text-muted tracking-widest font-bold block mb-1">TICKERS (separados por coma)</label>
           <input
-            className="bg-bg border border-border text-gray-900 px-3 py-2 text-xs uppercase tracking-widest w-full focus:outline-none focus:border-accent transition-colors"
+            className="bg-bg border border-border text-text px-3 py-2 text-xs uppercase tracking-widest w-full focus:outline-none focus:border-accent transition-colors"
             value={tickerInput}
             onChange={(e) => { setTickerInput(e.target.value.toUpperCase()); setExpirations([]); setSelectedExp(""); }}
             placeholder="SPY,QQQ,AAPL,TSLA..."
@@ -237,13 +237,13 @@ export default function ScannerPage() {
             <button
               onClick={fetchExpirations}
               disabled={loadingExps}
-              className="border border-border text-xs text-muted px-3 py-2 hover:text-gray-900 hover:border-accent disabled:opacity-40 transition-colors tracking-widest whitespace-nowrap"
+              className="border border-border text-xs text-muted px-3 py-2 hover:text-text hover:border-accent disabled:opacity-40 transition-colors tracking-widest whitespace-nowrap"
             >
               {loadingExps ? "..." : "CARGAR FECHAS"}
             </button>
             {expirations.length > 0 && (
               <select
-                className="bg-bg border border-border text-gray-900 px-3 py-2 text-xs focus:outline-none focus:border-accent transition-colors"
+                className="bg-bg border border-border text-text px-3 py-2 text-xs focus:outline-none focus:border-accent transition-colors"
                 value={selectedExp}
                 onChange={(e) => setSelectedExp(e.target.value ? parseInt(e.target.value) : "")}
               >
@@ -279,14 +279,14 @@ export default function ScannerPage() {
               <button
                 key={f}
                 onClick={() => setFilterType(f)}
-                className={`px-3 py-1 text-xs font-bold tracking-widest border transition-colors ${filterType === f ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-gray-900"}`}
+                className={`px-3 py-1 text-xs font-bold tracking-widest border transition-colors ${filterType === f ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-text"}`}
               >
                 {f === "ALL" ? "TODOS" : f}
               </button>
             ))}
           </div>
           <select
-            className="bg-bg border border-border text-gray-900 px-3 py-1 text-xs focus:outline-none focus:border-accent"
+            className="bg-bg border border-border text-text px-3 py-1 text-xs focus:outline-none focus:border-accent"
             value={filterTicker}
             onChange={(e) => setFilterTicker(e.target.value)}
           >
@@ -410,7 +410,7 @@ export default function ScannerPage() {
                             >
                               {r.bias}
                             </span>
-                            <div className="w-full h-1 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="w-full h-1 rounded-full bg-surface overflow-hidden">
                               <div
                                 className="h-full rounded-full"
                                 style={{

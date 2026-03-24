@@ -213,7 +213,7 @@ function SignalRow({ signal }: { signal: SignalComponent }) {
   return (
     <div className="py-3 border-b border-border last:border-0">
       <div className="flex items-center gap-3 mb-1.5">
-        <div className="text-xs font-bold tracking-wider text-gray-700 w-36 shrink-0">{signal.name}</div>
+        <div className="text-xs font-bold tracking-wider text-subtle w-36 shrink-0">{signal.name}</div>
         <div className="flex-1 relative h-4 bg-surface border border-border">
           <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border z-10" />
           <div
@@ -329,7 +329,7 @@ export default function Metodologia5({
               </div>
               <div className="border-l-2 border-border pl-8">
                 <div className="text-xs text-muted tracking-widest mb-1">SPOT</div>
-                <div className="text-3xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-muted">${data.spot.toFixed(2)}</div>
               </div>
               <div className="border-l-2 border-border pl-8">
                 <div className="text-xs text-muted tracking-widest mb-1">MAX PAIN</div>

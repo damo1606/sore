@@ -96,7 +96,7 @@ export default function Metodologia1({
           <div className="flex flex-wrap items-end gap-4 sm:gap-8">
             <div>
               <div className="text-xs text-muted tracking-widest mb-1">PRECIO SPOT</div>
-              <div className="text-4xl sm:text-6xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
+              <div className="text-4xl sm:text-6xl font-bold text-muted">${data.spot.toFixed(2)}</div>
             </div>
             <div className="border-l-2 border-border pl-4 sm:pl-8">
               <div className="text-xs text-muted tracking-widest mb-1">RÉGIMEN GAMMA</div>

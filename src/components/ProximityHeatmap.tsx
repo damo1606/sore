@@ -105,7 +105,7 @@ export default function ProximityHeatmap({
               {/* Strike label */}
               <div className="flex items-center justify-end pr-2 h-10">
                 <div className="text-right">
-                  <div className="text-xs font-mono font-bold text-gray-700">${s.strike}</div>
+                  <div className="text-xs font-mono font-bold text-subtle">${s.strike}</div>
                   {isResistance && <div className="text-[8px] font-bold text-danger leading-none">RES ▲</div>}
                   {isSupport    && <div className="text-[8px] font-bold text-accent leading-none">SUP ▼</div>}
                   {isSpot       && <div className="text-[8px] font-bold text-yellow-600 leading-none">SPOT ◆</div>}
@@ -114,7 +114,7 @@ export default function ProximityHeatmap({
 
               {/* Proximity bar */}
               <div className="flex items-center px-1 h-10">
-                <div className="w-full h-6 bg-gray-100 rounded overflow-hidden relative">
+                <div className="w-full h-6 bg-surface rounded overflow-hidden relative">
                   <div
                     className="h-full rounded transition-all duration-500"
                     style={{ width: `${Math.max(4, proxIntensity * 100)}%`, background: proxBg }}

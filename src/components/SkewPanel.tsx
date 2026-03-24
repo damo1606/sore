@@ -125,7 +125,7 @@ export default function SkewPanel({ data }: { data: Heatmap2DData }) {
             <tbody>
               {topPutSkew.map((row) => (
                 <tr key={row.strike} className="border-b border-border last:border-0">
-                  <td className="py-1 font-bold text-gray-800">${row.strike}</td>
+                  <td className="py-1 font-bold text-muted">${row.strike}</td>
                   <td className="py-1 text-right font-bold" style={{ color: "#e65100" }}>{pct(row.skew)}</td>
                   <td className="py-1 text-right text-muted">
                     {row.strike === support ? "SUP ▼" : row.strike === resistance ? "RES ▲" : Math.abs(row.strike - spot) < 0.5 ? "SPOT" : ""}
@@ -154,7 +154,7 @@ export default function SkewPanel({ data }: { data: Heatmap2DData }) {
             <tbody>
               {topCallSkew.map((row) => (
                 <tr key={row.strike} className="border-b border-border last:border-0">
-                  <td className="py-1 font-bold text-gray-800">${row.strike}</td>
+                  <td className="py-1 font-bold text-muted">${row.strike}</td>
                   <td className="py-1 text-right font-bold" style={{ color: "#1565c0" }}>+{pct(Math.abs(row.skew))}</td>
                   <td className="py-1 text-right text-muted">
                     {row.strike === support ? "SUP ▼" : row.strike === resistance ? "RES ▲" : Math.abs(row.strike - spot) < 0.5 ? "SPOT" : ""}

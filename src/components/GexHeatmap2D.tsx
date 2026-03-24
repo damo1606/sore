@@ -203,7 +203,7 @@ export default function GexHeatmap2D({ data }: { data: Heatmap2DData }) {
                   background: isSpot ? "rgba(245,166,35,0.08)" : undefined,
                 }}
               >
-                <div className="text-[10px] font-mono font-bold text-gray-700">${strike}</div>
+                <div className="text-[10px] font-mono font-bold text-subtle">${strike}</div>
                 {isResistance && <div className="text-[7px] font-bold text-danger leading-none">RES ▲</div>}
                 {isSupport    && <div className="text-[7px] font-bold text-accent leading-none">SUP ▼</div>}
                 {isSpot       && <div className="text-[7px] font-bold text-yellow-600 leading-none">SPOT</div>}

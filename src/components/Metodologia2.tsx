@@ -105,7 +105,7 @@ export default function Metodologia2({
           <div className="flex flex-wrap items-end gap-8">
             <div>
               <div className="text-sm text-muted tracking-widest mb-1">SPOT PRICE</div>
-              <div className="text-6xl font-bold text-gray-900">${data.spot.toFixed(2)}</div>
+              <div className="text-6xl font-bold text-muted">${data.spot.toFixed(2)}</div>
             </div>
             <div className="border-l-2 border-border pl-8">
               <div className="text-sm text-muted tracking-widest mb-1">TICKER</div>
