@@ -79,8 +79,8 @@ async function scanTicker(
   const optData = result.options?.[0];
   if (!optData) return [];
 
-  const expTs: number = result.expirationDates?.[0] ?? 0;
-  const expiration = new Date(expTs * 1000).toISOString().split("T")[0];
+  const firstExpTs: number = expTs ?? result.expirationDates?.[0] ?? 0;
+  const expiration = new Date(firstExpTs * 1000).toISOString().split("T")[0];
 
   interface YahooOption {
     strike?: number;
