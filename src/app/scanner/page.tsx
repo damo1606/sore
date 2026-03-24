@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 type Bias = "BULLISH" | "BEARISH" | "NEUTRAL";
 
@@ -64,6 +64,7 @@ function scoreBadge(score: number): string {
 }
 
 interface Expiration { ts: number; date: string; }
+interface LivePrice { price: number; change: number; changePct: number; }
 
 export default function ScannerPage() {
   const [tickerInput, setTickerInput] = useState(DEFAULT_TICKERS);
@@ -79,6 +80,28 @@ export default function ScannerPage() {
   const [expirations, setExpirations] = useState<Expiration[]>([]);
   const [selectedExp, setSelectedExp] = useState<number | "">("");
   const [loadingExps, setLoadingExps] = useState(false);
+  const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
+  const [lastPrice, setLastPrice] = useState("");
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  async function fetchLivePrices(tickers: string) {
+    try {
+      const res = await fetch(`/api/scanner/prices?tickers=${encodeURIComponent(tickers)}`);
+      const json = await res.json();
+      if (json.prices) {
+        setLivePrices(json.prices);
+        setLastPrice(new Date().toLocaleTimeString("es-ES"));
+      }
+    } catch {}
+  }
+
+  // Auto-refresh prices every 30s
+  useEffect(() => {
+    const tickers = tickerInput.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean).join(",");
+    fetchLivePrices(tickers);
+    intervalRef.current = setInterval(() => fetchLivePrices(tickers), 30000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [tickerInput]);
 
   async function fetchExpirations() {
     const firstTicker = tickerInput.split(",")[0].trim().toUpperCase() || "SPY";
@@ -162,6 +185,24 @@ export default function ScannerPage() {
           CERRAR SESIÓN
         </button>
       </header>
+
+      {/* Live Prices Bar */}
+      {Object.keys(livePrices).length > 0 && (
+        <div className="bg-gray-900 px-4 sm:px-6 py-2 flex gap-4 overflow-x-auto items-center">
+          {Object.entries(livePrices).map(([ticker, data]) => (
+            <div key={ticker} className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs font-bold text-white tracking-widest">{ticker}</span>
+              <span className="text-xs font-mono text-white">${data.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className={`text-[10px] font-mono ${data.change >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {data.change >= 0 ? "+" : ""}{data.change.toFixed(2)} ({data.changePct >= 0 ? "+" : ""}{data.changePct.toFixed(2)}%)
+              </span>
+            </div>
+          ))}
+          <span className="text-[9px] text-gray-500 ml-auto shrink-0 tracking-widest">
+            ● LIVE · {lastPrice}
+          </span>
+        </div>
+      )}
 
       {/* Intro */}
       <div className="bg-surface border-b border-border px-4 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -282,6 +323,7 @@ export default function ScannerPage() {
               <thead>
                 <tr className="border-b-2 border-accent bg-surface">
                   <SortHeader label="TICKER" k="ticker" />
+                  <SortHeader label="SPOT" k="spot" />
                   <SortHeader label="STRIKE" k="strike" />
                   <th className="px-3 py-2 text-left text-[10px] tracking-widest font-bold text-muted">TIPO</th>
                   <SortHeader label="VENCE" k="expiration" />
@@ -301,6 +343,23 @@ export default function ScannerPage() {
                     className="border-b border-border hover:bg-surface transition-colors"
                   >
                     <td className="px-3 py-2 font-bold text-accent tracking-widest">{r.ticker}</td>
+                    <td className="px-3 py-2 font-mono">
+                      {(() => {
+                        const live = livePrices[r.ticker];
+                        const price = live ? live.price : r.spot;
+                        const change = live?.change ?? 0;
+                        return (
+                          <div className="flex flex-col">
+                            <span className="font-mono text-sm">${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            {live && (
+                              <span className={`text-[9px] font-mono ${change >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {change >= 0 ? "+" : ""}{change.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td className="px-3 py-2 font-mono">{r.strike.toLocaleString()}</td>
                     <td className="px-3 py-2">
                       <span className={`text-xs font-bold px-2 py-0.5 ${r.type === "CALL" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
