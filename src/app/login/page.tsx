@@ -47,7 +47,7 @@ export default function LoginPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent transition-colors"
+              className="bg-bg border border-border text-text px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent transition-colors"
               placeholder="usuario"
               autoComplete="username"
               required
@@ -60,7 +60,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent transition-colors"
+              className="bg-bg border border-border text-text px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent transition-colors"
               placeholder="••••••••"
               autoComplete="current-password"
               required

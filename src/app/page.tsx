@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Metodologia1 from "@/components/Metodologia1";
 import Metodologia2 from "@/components/Metodologia2";
 import Metodologia3 from "@/components/Metodologia3";
@@ -119,6 +119,17 @@ export default function Home() {
   }
 
   const [introOpen, setIntroOpen] = useState(false);
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    const isDark = document.documentElement.classList.toggle("dark");
+    localStorage.setItem("sore-theme", isDark ? "dark" : "light");
+    setDark(isDark);
+  }, []);
 
   // Auto logout: cierra sesión si el usuario vuelve a abrir la página (sessionStorage)
   // o si pasa 1 hora sin actividad
@@ -155,7 +166,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-bg text-gray-900">
+    <div className="min-h-screen bg-bg text-text">
 
       {/* Header */}
       <header className="border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between bg-bg sticky top-0 z-50 shadow-sm">
@@ -168,6 +179,14 @@ export default function Home() {
             SCANNER
           </a>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTheme}
+            className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors"
+            title={dark ? "Modo claro" : "Modo oscuro"}
+          >
+            {dark ? "☀ CLARO" : "◑ OSCURO"}
+          </button>
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST" });
@@ -177,6 +196,7 @@ export default function Home() {
         >
           CERRAR SESIÓN
         </button>
+        </div>
       </header>
 
       {/* Global Controls */}
@@ -186,7 +206,7 @@ export default function Home() {
             {/* Search input with autocomplete */}
             <div ref={searchRef} className="relative">
               <input
-                className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm uppercase tracking-widest w-48 sm:w-56 focus:outline-none focus:border-accent transition-colors"
+                className="bg-bg border border-border text-text px-3 py-2 text-sm uppercase tracking-widest w-48 sm:w-56 focus:outline-none focus:border-accent transition-colors"
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value.toUpperCase());
@@ -202,7 +222,7 @@ export default function Home() {
               />
               {/* Dropdown */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-border shadow-lg max-h-64 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 z-50 bg-bg border border-border shadow-lg max-h-64 overflow-y-auto">
                   {suggestions.map((s) => (
                     <button
                       key={s.symbol}
@@ -211,7 +231,7 @@ export default function Home() {
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-sm font-bold text-accent shrink-0">{s.symbol}</span>
-                        <span className="text-xs text-gray-600 truncate">{s.name}</span>
+                        <span className="text-xs text-subtle truncate">{s.name}</span>
                       </div>
                       <span className="text-[10px] text-muted shrink-0">{s.exchange}</span>
                     </button>
@@ -230,7 +250,7 @@ export default function Home() {
 
           {expirations.length > 0 && (
             <select
-              className="bg-bg border border-border text-gray-900 px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors w-full sm:w-auto"
+              className="bg-bg border border-border text-text px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors w-full sm:w-auto"
               value={expiration}
               onChange={(e) => setExpiration(e.target.value)}
             >
@@ -281,7 +301,7 @@ export default function Home() {
                 className={`px-4 sm:px-5 py-3 text-xs sm:text-sm font-bold tracking-widest border-b-2 transition-colors flex flex-col items-center sm:items-start shrink-0 ${
                   activeTab === tab
                     ? "border-accent text-accent"
-                    : "border-transparent text-muted hover:text-gray-900"
+                    : "border-transparent text-muted hover:text-text"
                 }`}
               >
                 <span className="sm:hidden">{shortLabel}</span>
@@ -312,15 +332,15 @@ export default function Home() {
             <div className={`${introOpen ? "block" : "hidden"} sm:block px-4 sm:px-6 pb-4 pt-1 sm:pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3`}>
               <div>
                 <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ MIDE</div>
-                <div className="text-xs text-gray-700 leading-relaxed">{intro.what}</div>
+                <div className="text-xs text-subtle leading-relaxed">{intro.what}</div>
               </div>
               <div>
                 <div className="text-[9px] text-muted tracking-widest font-bold mb-1">CÓMO FUNCIONA</div>
-                <div className="text-xs text-gray-700 leading-relaxed">{intro.how}</div>
+                <div className="text-xs text-subtle leading-relaxed">{intro.how}</div>
               </div>
               <div>
                 <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ PRODUCE</div>
-                <div className="text-xs text-gray-700 leading-relaxed">{intro.output}</div>
+                <div className="text-xs text-subtle leading-relaxed">{intro.output}</div>
               </div>
             </div>
           </div>
