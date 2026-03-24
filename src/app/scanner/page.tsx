@@ -63,6 +63,8 @@ function scoreBadge(score: number): string {
   return "bg-yellow-50 text-yellow-700 border border-yellow-200";
 }
 
+interface Expiration { ts: number; date: string; }
+
 export default function ScannerPage() {
   const [tickerInput, setTickerInput] = useState(DEFAULT_TICKERS);
   const [rows, setRows] = useState<AnomalyRow[]>([]);
@@ -74,13 +76,29 @@ export default function ScannerPage() {
   const [filterType, setFilterType] = useState<FilterType>("ALL");
   const [filterTicker, setFilterTicker] = useState("ALL");
   const [lastScan, setLastScan] = useState("");
+  const [expirations, setExpirations] = useState<Expiration[]>([]);
+  const [selectedExp, setSelectedExp] = useState<number | "">("");
+  const [loadingExps, setLoadingExps] = useState(false);
+
+  async function fetchExpirations() {
+    const firstTicker = tickerInput.split(",")[0].trim().toUpperCase() || "SPY";
+    setLoadingExps(true);
+    try {
+      const res = await fetch(`/api/scanner/expirations?ticker=${firstTicker}`);
+      const json = await res.json();
+      setExpirations(json.expirations ?? []);
+      setSelectedExp("");
+    } catch {}
+    setLoadingExps(false);
+  }
 
   async function handleScan() {
     setLoading(true);
     setError("");
     try {
       const tickers = tickerInput.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean).join(",");
-      const res = await fetch(`/api/scanner?tickers=${encodeURIComponent(tickers)}`);
+      const expParam = selectedExp ? `&expiration=${selectedExp}` : "";
+      const res = await fetch(`/api/scanner?tickers=${encodeURIComponent(tickers)}${expParam}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error en el scanner");
       setRows(json.rows ?? []);
@@ -157,20 +175,51 @@ export default function ScannerPage() {
       </div>
 
       {/* Controls */}
-      <div className="border-b border-border px-4 sm:px-6 py-3 bg-bg flex flex-col sm:flex-row gap-3 sm:items-center">
+      <div className="border-b border-border px-4 sm:px-6 py-3 bg-bg flex flex-col sm:flex-row gap-3 sm:items-end">
         <div className="flex-1">
           <label className="text-[9px] text-muted tracking-widest font-bold block mb-1">TICKERS (separados por coma)</label>
           <input
             className="bg-bg border border-border text-gray-900 px-3 py-2 text-xs uppercase tracking-widest w-full focus:outline-none focus:border-accent transition-colors"
             value={tickerInput}
-            onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
+            onChange={(e) => { setTickerInput(e.target.value.toUpperCase()); setExpirations([]); setSelectedExp(""); }}
             placeholder="SPY,QQQ,AAPL,TSLA..."
           />
+        </div>
+        <div>
+          <label className="text-[9px] text-muted tracking-widest font-bold block mb-1">FECHA DE EXPIRACIÓN</label>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchExpirations}
+              disabled={loadingExps}
+              className="border border-border text-xs text-muted px-3 py-2 hover:text-gray-900 hover:border-accent disabled:opacity-40 transition-colors tracking-widest whitespace-nowrap"
+            >
+              {loadingExps ? "..." : "CARGAR FECHAS"}
+            </button>
+            {expirations.length > 0 && (
+              <select
+                className="bg-bg border border-border text-gray-900 px-3 py-2 text-xs focus:outline-none focus:border-accent transition-colors"
+                value={selectedExp}
+                onChange={(e) => setSelectedExp(e.target.value ? parseInt(e.target.value) : "")}
+              >
+                <option value="">PRÓXIMO VENCIMIENTO</option>
+                {expirations.map(({ ts, date }) => {
+                  const d = new Date(date + "T12:00:00");
+                  const dow = d.getDay();
+                  const day = d.getDate();
+                  const mon = d.getMonth();
+                  const isThirdFri = dow === 5 && day >= 15 && day <= 21;
+                  const isQuart = isThirdFri && [2, 5, 8, 11].includes(mon);
+                  const suffix = isQuart ? " ★ TRIM" : isThirdFri ? " · MEN" : "";
+                  return <option key={ts} value={ts}>{date}{suffix}</option>;
+                })}
+              </select>
+            )}
+          </div>
         </div>
         <button
           onClick={handleScan}
           disabled={loading}
-          className="bg-accent text-white px-6 py-2 text-sm font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity self-end"
+          className="bg-accent text-white px-6 py-2 text-sm font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
         >
           {loading ? "ESCANEANDO..." : "ESCANEAR"}
         </button>

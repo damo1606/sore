@@ -63,9 +63,11 @@ function computeBias(type: "CALL" | "PUT", strike: number, spot: number, volOiRa
 async function scanTicker(
   ticker: string,
   cookie: string,
-  crumb: string
+  crumb: string,
+  expTs?: number
 ): Promise<AnomalyRow[]> {
-  const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}?crumb=${crumb}`;
+  const dateParam = expTs ? `&date=${expTs}` : "";
+  const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}?crumb=${crumb}${dateParam}`;
   const res = await fetch(url, { headers: { ...HEADERS, Cookie: cookie }, cache: "no-store" });
   if (!res.ok) return [];
 
@@ -146,10 +148,13 @@ export async function GET(request: NextRequest) {
       ? tickerParam.split(",").map((t) => t.trim().toUpperCase()).slice(0, 15)
       : DEFAULT_TICKERS;
 
+    const expParam = searchParams.get("expiration");
+    const expTs = expParam ? parseInt(expParam) : undefined;
+
     const { crumb, cookie } = await getCredentials();
 
     const results = await Promise.allSettled(
-      tickers.map((t) => scanTicker(t, cookie, crumb))
+      tickers.map((t) => scanTicker(t, cookie, crumb, expTs))
     );
 
     const allRows: AnomalyRow[] = results
