@@ -30,8 +30,11 @@ function zScore(values: number[]): number[] {
   return values.map((v) => (v - mean) / std);
 }
 
+export type Bias = "BULLISH" | "BEARISH" | "NEUTRAL";
+
 export interface AnomalyRow {
   ticker: string;
+  spot: number;
   strike: number;
   type: "CALL" | "PUT";
   expiration: string;
@@ -41,6 +44,20 @@ export interface AnomalyRow {
   volOiRatio: number;
   oiZScore: number;
   anomalyScore: number;
+  bias: Bias;
+}
+
+function computeBias(type: "CALL" | "PUT", strike: number, spot: number, volOiRatio: number): Bias {
+  const aboveSpot = strike >= spot;
+  // CALLs above spot = bullish speculation
+  // PUTs above spot = strong bearish hedge (unusual)
+  // PUTs below spot = bearish protection
+  // CALLs below spot = neutral (covered call / deep ITM)
+  if (type === "CALL" && aboveSpot) return "BULLISH";
+  if (type === "PUT") return "BEARISH";
+  // CALL below spot: neutral unless heavy fresh flow
+  if (type === "CALL" && !aboveSpot && volOiRatio >= 1) return "BULLISH";
+  return "NEUTRAL";
 }
 
 async function scanTicker(
@@ -100,12 +117,13 @@ async function scanTicker(
 
   return rows.map((r, i) => {
     const volOiRatio = r.oi > 0 ? r.volume / r.oi : 0;
-    // Anomaly score: weighted combination of OI z-score + volume/OI ratio + IV
     const anomalyScore = parseFloat(
       (Math.max(0, zScores[i]) * 0.5 + Math.min(volOiRatio, 5) * 0.35 + Math.min(r.iv * 10, 3) * 0.15).toFixed(3)
     );
+    const bias = computeBias(r.type, r.strike, spot, volOiRatio);
     return {
       ticker,
+      spot: parseFloat(spot.toFixed(2)),
       strike: r.strike,
       type: r.type,
       expiration,
@@ -115,6 +133,7 @@ async function scanTicker(
       volOiRatio: parseFloat(volOiRatio.toFixed(2)),
       oiZScore: parseFloat(zScores[i].toFixed(2)),
       anomalyScore,
+      bias,
     };
   });
 }

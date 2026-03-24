@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
+
+type Bias = "BULLISH" | "BEARISH" | "NEUTRAL";
 
 interface AnomalyRow {
   ticker: string;
+  spot: number;
   strike: number;
   type: "CALL" | "PUT";
   expiration: string;
@@ -13,6 +16,33 @@ interface AnomalyRow {
   volOiRatio: number;
   oiZScore: number;
   anomalyScore: number;
+  bias: Bias;
+}
+
+// Proximity: 0 = far (>10%), 1 = ATM (0%)
+function proximity(strike: number, spot: number): number {
+  if (spot <= 0) return 0;
+  const dist = Math.abs(strike - spot) / spot;
+  return Math.max(0, 1 - dist / 0.10);
+}
+
+function biasHeatmapStyle(bias: Bias, prox: number): React.CSSProperties {
+  const intensity = Math.round(prox * 255);
+  if (bias === "BULLISH") {
+    return {
+      backgroundColor: `rgba(22, 163, 74, ${0.08 + prox * 0.72})`,
+      color: prox > 0.5 ? `rgb(${Math.round(255 - intensity * 0.6)}, ${Math.round(200 - intensity * 0.3)}, ${Math.round(255 - intensity)})` : "rgb(21,128,61)",
+      borderColor: `rgba(22, 163, 74, ${0.3 + prox * 0.7})`,
+    };
+  }
+  if (bias === "BEARISH") {
+    return {
+      backgroundColor: `rgba(220, 38, 38, ${0.08 + prox * 0.72})`,
+      color: prox > 0.5 ? `rgb(255, ${Math.round(255 - intensity * 0.8)}, ${Math.round(255 - intensity)})` : "rgb(185,28,28)",
+      borderColor: `rgba(220, 38, 38, ${0.3 + prox * 0.7})`,
+    };
+  }
+  return { backgroundColor: "rgb(243,244,246)", color: "rgb(107,114,128)", borderColor: "rgb(209,213,219)" };
 }
 
 const DEFAULT_TICKERS = "SPY,QQQ,IWM,AAPL,TSLA,NVDA,AMZN,MSFT,META,AMD";
@@ -207,6 +237,7 @@ export default function ScannerPage() {
                   <SortHeader label="IV %" k="iv" />
                   <SortHeader label="Z-SCORE OI" k="oiZScore" />
                   <SortHeader label="ANOMALÍA" k="anomalyScore" />
+                  <SortHeader label="SESGO" k="bias" />
                 </tr>
               </thead>
               <tbody>
@@ -234,6 +265,35 @@ export default function ScannerPage() {
                       <span className={`text-xs font-bold px-2 py-0.5 ${scoreBadge(r.anomalyScore)}`}>
                         {r.anomalyScore.toFixed(2)}
                       </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {(() => {
+                        const prox = proximity(r.strike, r.spot);
+                        const style = biasHeatmapStyle(r.bias, prox);
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            <span
+                              className="text-xs font-bold px-2 py-0.5 border text-center"
+                              style={style}
+                            >
+                              {r.bias}
+                            </span>
+                            <div className="w-full h-1 rounded-full bg-gray-100 overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${Math.round(prox * 100)}%`,
+                                  backgroundColor: r.bias === "BULLISH" ? "rgb(22,163,74)" : r.bias === "BEARISH" ? "rgb(220,38,38)" : "rgb(156,163,175)",
+                                  opacity: 0.4 + prox * 0.6,
+                                }}
+                              />
+                            </div>
+                            <span className="text-[9px] text-muted text-center tracking-widest">
+                              {Math.round(prox * 100)}% ATM
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
