@@ -107,6 +107,18 @@ export default function CandlestickChart({ candles, levels, spot }: Props) {
 
     chart.timeScale().fitContent();
 
+    // Hide TradingView attribution logo
+    const hideAttribution = () => {
+      containerRef.current?.querySelectorAll("a").forEach((a) => {
+        (a as HTMLElement).style.display = "none";
+      });
+    };
+    hideAttribution();
+    const attrObserver = new MutationObserver(hideAttribution);
+    if (containerRef.current) {
+      attrObserver.observe(containerRef.current, { childList: true, subtree: true });
+    }
+
     const observer = new ResizeObserver(() => {
       if (containerRef.current) {
         chart.applyOptions({ width: containerRef.current.clientWidth });
@@ -116,6 +128,7 @@ export default function CandlestickChart({ candles, levels, spot }: Props) {
 
     return () => {
       observer.disconnect();
+      attrObserver.disconnect();
       chart.remove();
     };
   }, [candles, levels, spot]);
