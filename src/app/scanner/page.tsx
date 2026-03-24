@@ -146,6 +146,9 @@ export default function ScannerPage() {
         <div className="flex items-center gap-3">
           <a href="/" className="text-accent font-bold text-xl sm:text-2xl tracking-[0.3em] hover:opacity-80 transition-opacity">SORE</a>
           <span className="text-muted text-xs tracking-widest hidden sm:block">SCANNER · ANOMALÍAS DE OI</span>
+          <a href="/" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
+            ← INSTITUTIONAL OPTIONS FLOW
+          </a>
         </div>
         <button
           onClick={async () => {
