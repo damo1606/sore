@@ -161,9 +161,11 @@ export default function Home() {
       <header className="border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between bg-bg sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-accent font-bold text-xl sm:text-2xl tracking-[0.3em]">SORE</span>
-          <span className="text-muted text-xs tracking-widest hidden sm:block">INSTITUTIONAL OPTIONS FLOW</span>
+          <span className="text-xs text-accent border border-accent px-3 py-1 tracking-widest font-bold hidden sm:block">
+            INSTITUTIONAL OPTIONS FLOW
+          </span>
           <a href="/scanner" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
-            SCANNER OI
+            SCANNER
           </a>
         </div>
         <button
