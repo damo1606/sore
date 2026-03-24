@@ -325,6 +325,7 @@ export default function ScannerPage() {
                   <SortHeader label="TICKER" k="ticker" />
                   <SortHeader label="SPOT" k="spot" />
                   <SortHeader label="STRIKE" k="strike" />
+                  <th className="px-3 py-2 text-left text-[10px] tracking-widest font-bold text-muted">STRIKE VS SPOT</th>
                   <th className="px-3 py-2 text-left text-[10px] tracking-widest font-bold text-muted">TIPO</th>
                   <SortHeader label="VENCE" k="expiration" />
                   <SortHeader label="OI" k="oi" />
@@ -361,6 +362,24 @@ export default function ScannerPage() {
                       })()}
                     </td>
                     <td className="px-3 py-2 font-mono">{r.strike.toLocaleString()}</td>
+                    <td className="px-3 py-2">
+                      {(() => {
+                        const spot = livePrices[r.ticker]?.price ?? r.spot;
+                        const diff = r.strike - spot;
+                        const pct = spot > 0 ? (diff / spot) * 100 : 0;
+                        const isAbove = diff > 0;
+                        return (
+                          <div className="flex flex-col">
+                            <span className={`text-xs font-mono font-bold ${isAbove ? "text-green-600" : "text-red-600"}`}>
+                              {isAbove ? "+" : ""}{diff.toFixed(2)}
+                            </span>
+                            <span className={`text-[9px] font-mono ${isAbove ? "text-green-500" : "text-red-500"}`}>
+                              {isAbove ? "+" : ""}{pct.toFixed(2)}% {isAbove ? "↑ OTM" : "↓ OTM"}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td className="px-3 py-2">
                       <span className={`text-xs font-bold px-2 py-0.5 ${r.type === "CALL" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                         {r.type}
