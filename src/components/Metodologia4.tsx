@@ -262,7 +262,7 @@ export default function Metodologia4({
               totalPutOI  += cell.putOI;
               strikeMap.set(cell.strike, (strikeMap.get(cell.strike) ?? 0) + cell.callOI + cell.putOI);
             }
-            const topStrike = [...strikeMap.entries()].sort((a, b) => b[1] - a[1])[0];
+            const topStrike = Array.from(strikeMap.entries()).sort((a, b) => b[1] - a[1])[0];
             const totalOI   = totalCallOI + totalPutOI;
             const callPct   = totalOI > 0 ? (totalCallOI / totalOI * 100) : 50;
             const putPct    = totalOI > 0 ? (totalPutOI  / totalOI * 100) : 50;
