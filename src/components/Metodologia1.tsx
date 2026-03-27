@@ -75,10 +75,22 @@ export default function Metodologia1({
       )}
 
       {!data && !loading && !error && (
-        <div className="flex flex-col items-center justify-center h-[70vh] gap-4 text-muted">
-          <div className="w-20 h-20 border-2 border-border flex items-center justify-center text-4xl">◈</div>
-          <p className="text-base tracking-widest">INGRESA UN TICKER Y PRESIONA ANALIZAR</p>
-          <p className="text-sm opacity-60">SPY · QQQ · NVDA · AAPL · TSLA · MSFT · AMZN · GOOGL · META · AMD</p>
+        <div className="flex flex-col items-center justify-center h-[70vh] gap-6 text-muted">
+          <div className="relative">
+            <div className="w-24 h-24 border border-border flex items-center justify-center text-5xl text-border">◈</div>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full animate-pulse" />
+          </div>
+          <div className="text-center space-y-2">
+            <p className="text-base tracking-widest font-semibold text-subtle">INGRESA UN TICKER Y PRESIONA ANALIZAR</p>
+            <p className="text-xs text-muted opacity-60 tracking-widest">FLUJO INSTITUCIONAL · GEX · VANNA · DEALER FLOW</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2 max-w-md">
+            {["SPY", "QQQ", "NVDA", "AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "META", "AMD"].map((t) => (
+              <div key={t} className="px-3 py-1 border border-border text-xs font-mono text-muted tracking-widest">
+                {t}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -124,7 +136,7 @@ export default function Metodologia1({
               <div className="w-full h-4 bg-surface border border-border rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${data.institutionalPressure >= 0 ? "bg-accent" : "bg-danger"}`}
-                  style={{ width: `${Math.min(Math.abs(data.institutionalPressure), 100)}%`, marginLeft: data.institutionalPressure >= 0 ? "50%" : `${50 - Math.min(Math.abs(data.institutionalPressure), 50)}%` }}
+                  style={{ width: `${Math.min(Math.abs(data.institutionalPressure) * 0.5, 50)}%`, marginLeft: data.institutionalPressure >= 0 ? "50%" : `${Math.max(50 - Math.abs(data.institutionalPressure) * 0.5, 0)}%` }}
                 />
               </div>
               <div className="flex justify-between text-xs text-muted mt-1">

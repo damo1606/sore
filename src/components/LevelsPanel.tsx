@@ -5,66 +5,95 @@ interface Props {
   spot: number;
 }
 
+const ITEMS = [
+  { key: "callWall"   as const, label: "CALL WALL",   hex: "#f04444", desc: "Mayor open interest en calls" },
+  { key: "resistance" as const, label: "RESISTENCIA", hex: "#f97316", desc: "GEX más negativo sobre spot" },
+  { key: "gammaFlip"  as const, label: "GAMMA FLIP",  hex: "#fbbf24", desc: "GEX acumulado = 0" },
+  { key: "support"    as const, label: "SOPORTE",     hex: "#00b85c", desc: "GEX más positivo bajo spot" },
+  { key: "putWall"    as const, label: "PUT WALL",    hex: "#3b82f6", desc: "Mayor open interest en puts" },
+];
+
 export default function LevelsPanel({ levels, spot }: Props) {
-  const items = [
-    {
-      label: "CALL WALL",
-      value: levels.callWall,
-      color: "text-danger",
-      borderColor: "border-t-danger",
-      desc: "Mayor open interest en calls",
-    },
-    {
-      label: "RESISTENCIA",
-      value: levels.resistance,
-      color: "text-orange-400",
-      borderColor: "border-t-orange-500",
-      desc: "Strike con GEX más negativo sobre spot",
-    },
-    {
-      label: "GAMMA FLIP",
-      value: levels.gammaFlip,
-      color: "text-warning",
-      borderColor: "border-t-warning",
-      desc: "GEX acumulado = 0",
-    },
-    {
-      label: "SOPORTE",
-      value: levels.support,
-      color: "text-accent",
-      borderColor: "border-t-accent",
-      desc: "Strike con GEX más positivo bajo spot",
-    },
-    {
-      label: "PUT WALL",
-      value: levels.putWall,
-      color: "text-info",
-      borderColor: "border-t-info",
-      desc: "Mayor open interest en puts",
-    },
-  ];
+  const allPoints = [
+    ...ITEMS.map((i) => ({ label: i.label, value: levels[i.key], hex: i.hex, desc: i.desc, isSpot: false })),
+    { label: "SPOT", value: spot, hex: "#8b98b0", desc: "", isSpot: true },
+  ].sort((a, b) => b.value - a.value);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-      {items.map((item) => {
-        const pct = ((item.value - spot) / spot) * 100;
-        return (
-          <div
-            key={item.label}
-            className={`bg-card border border-border border-t-4 ${item.borderColor} p-5`}
-          >
-            <div className="text-sm text-muted tracking-widest mb-2 font-semibold">{item.label}</div>
-            <div className={`text-3xl font-bold ${item.color}`}>
-              ${item.value.toFixed(2)}
-            </div>
-            <div className="text-sm text-subtle mt-2">
-              {pct >= 0 ? "+" : ""}
-              {pct.toFixed(2)}% vs precio
-            </div>
-            <div className="text-xs text-muted mt-1">{item.desc}</div>
-          </div>
-        );
-      })}
+    <div className="bg-card border border-border p-6">
+      <div className="text-sm text-muted tracking-widest mb-6 font-semibold">NIVELES INSTITUCIONALES</div>
+      <div className="relative pl-8">
+        {/* Vertical connecting line */}
+        <div className="absolute w-px bg-border" style={{ left: "7px", top: "16px", bottom: "16px" }} />
+
+        <div>
+          {allPoints.map((item, i) => {
+            const pct = ((item.value - spot) / spot) * 100;
+            const nextItem = allPoints[i + 1];
+            const gap = nextItem ? item.value - nextItem.value : null;
+            const gapPct = gap && spot ? (gap / spot) * 100 : null;
+
+            return (
+              <div key={item.label}>
+                <div className={`flex items-center gap-4 relative ${item.isSpot ? "py-3" : "py-2"}`}>
+                  {/* Dot */}
+                  <div
+                    className="absolute z-10 rounded-full border-2"
+                    style={{
+                      left: "-21px",
+                      width: item.isSpot ? "18px" : "14px",
+                      height: item.isSpot ? "18px" : "14px",
+                      top: "50%",
+                      transform: `translateY(-50%) ${item.isSpot ? "translateX(-2px)" : ""}`,
+                      borderColor: item.hex,
+                      background: item.isSpot ? item.hex : "var(--color-card)",
+                    }}
+                  />
+
+                  {/* Content */}
+                  <div
+                    className={`flex items-center justify-between w-full ${
+                      item.isSpot ? "bg-surface border border-border px-4 py-1.5 rounded" : ""
+                    }`}
+                  >
+                    <div>
+                      <span
+                        className="text-xs tracking-widest font-bold"
+                        style={{ color: item.isSpot ? "var(--color-text)" : item.hex }}
+                      >
+                        {item.label}
+                      </span>
+                      {!item.isSpot && (
+                        <p className="text-[10px] text-muted mt-0.5">{item.desc}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-6 ml-4">
+                      <span className="font-mono font-bold text-sm">${item.value.toFixed(2)}</span>
+                      {!item.isSpot && (
+                        <span
+                          className="font-mono text-xs w-16 text-right tabular-nums"
+                          style={{ color: pct >= 0 ? "#f04444" : "#00b85c" }}
+                        >
+                          {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Gap between levels */}
+                {gap !== null && gapPct !== null && gap > 0.01 && (
+                  <div className="flex justify-end pr-0 py-0.5">
+                    <span className="text-[10px] text-muted font-mono opacity-40">
+                      ↕ ${gap.toFixed(2)} · {gapPct.toFixed(2)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

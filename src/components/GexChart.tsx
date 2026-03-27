@@ -29,22 +29,22 @@ export default function GexChart({ data, spot, levels }: Props) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <BarChart data={visible} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
         <XAxis
           dataKey="strike"
-          tick={{ fill: "#555", fontSize: 10 }}
+          tick={{ fill: "var(--color-subtle)", fontSize: 10 }}
           tickFormatter={(v) => `$${v}`}
         />
         <YAxis
-          tick={{ fill: "#555", fontSize: 10 }}
+          tick={{ fill: "var(--color-subtle)", fontSize: 10 }}
           tickFormatter={fmtB}
           width={60}
         />
         <Tooltip
           contentStyle={{
-            background: "#161616",
-            border: "1px solid #222",
-            color: "#e0e0e0",
+            background: "var(--color-card)",
+            border: "1px solid var(--color-border)",
+            color: "var(--color-text)",
             fontSize: 12,
           }}
           formatter={(v: number) => [fmtB(v), "GEX"]}
@@ -52,9 +52,9 @@ export default function GexChart({ data, spot, levels }: Props) {
         />
         <ReferenceLine
           x={spot}
-          stroke="#ffffff"
+          stroke="var(--color-text)"
           strokeWidth={2}
-          label={{ value: "SPOT", fill: "#fff", fontSize: 9, position: "top" }}
+          label={{ value: "SPOT", fill: "var(--color-text)", fontSize: 9, position: "top" }}
         />
         <ReferenceLine
           x={levels.callWall}

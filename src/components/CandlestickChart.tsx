@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
@@ -35,31 +35,46 @@ const LEVELS = [
 export default function CandlestickChart({ candles, levels, spot }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, { attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current || candles.length === 0) return;
+
+    const bg      = isDark ? "#1d232b" : "#f9f9f9";
+    const grid    = isDark ? "#2c3545" : "#eeeeee";
+    const border  = isDark ? "#2c3545" : "#e0e0e0";
+    const txtColor = isDark ? "#8b98b0" : "#616161";
 
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
       height: 480,
       layout: {
-        background: { type: ColorType.Solid, color: "#f9f9f9" },
-        textColor: "#616161",
+        background: { type: ColorType.Solid, color: bg },
+        textColor: txtColor,
         fontSize: 13,
       },
       grid: {
-        vertLines: { color: "#eeeeee" },
-        horzLines: { color: "#eeeeee" },
+        vertLines: { color: grid },
+        horzLines: { color: grid },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
       },
       rightPriceScale: {
-        borderColor: "#e0e0e0",
+        borderColor: border,
         scaleMargins: { top: 0.1, bottom: 0.1 },
       },
       timeScale: {
-        borderColor: "#e0e0e0",
+        borderColor: border,
         timeVisible: true,
         fixLeftEdge: true,
         fixRightEdge: true,
@@ -131,7 +146,7 @@ export default function CandlestickChart({ candles, levels, spot }: Props) {
       attrObserver.disconnect();
       chart.remove();
     };
-  }, [candles, levels, spot]);
+  }, [candles, levels, spot, isDark]);
 
   return (
     <div>
