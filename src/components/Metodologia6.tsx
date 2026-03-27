@@ -662,6 +662,93 @@ export default function Metodologia6({
             );
           })()}
 
+          {/* ── RESUMEN M6 ─────────────────────────────────────────────────────── */}
+          {(() => {
+            const regimeSignal = data.regime === "COMPRESIÓN" ? "FAVORABLE" : data.regime === "TRANSICIÓN" ? "NEUTRO" : "DESFAVORABLE";
+            const regimeSignalColor = regimeSignal === "FAVORABLE" ? "text-accent border-accent" : regimeSignal === "NEUTRO" ? "text-warning border-warning" : "text-danger border-danger";
+
+            const stress = data.leadIndicators?.filter((i) => i.signal === "ESTRÉS").length ?? 0;
+            const recovery = data.leadIndicators?.filter((i) => i.signal === "RECUPERACIÓN").length ?? 0;
+            const totalLead = data.leadIndicators?.length ?? 0;
+            const leadConsensus = stress >= 2 ? "ESTRÉS" : recovery >= 2 ? "RECUPERACIÓN" : "NEUTRO";
+            const leadColor = leadConsensus === "ESTRÉS" ? "text-danger border-danger" : leadConsensus === "RECUPERACIÓN" ? "text-accent border-accent" : "text-warning border-warning";
+
+            const brief = data5 ? buildBrief(data5, data) : null;
+            const verdictFinal = brief?.adjustedVerdict ?? "—";
+            const verdictFinalColor = verdictFinal === "ALCISTA" ? "text-accent border-accent" : verdictFinal === "NO OPERAR" || verdictFinal === "BAJISTA" ? "text-danger border-danger" : "text-warning border-warning";
+
+            return (
+              <div className="bg-card border border-border p-6">
+                <div className="text-sm text-muted tracking-widest mb-4 font-semibold">RESUMEN — INTERPRETACIÓN</div>
+                <div className="space-y-3">
+
+                  {/* Regime */}
+                  <div className={`border-l-4 pl-4 py-2 ${regimeSignalColor}`}>
+                    <div className={`text-sm font-bold ${regimeSignalColor.split(" ")[0]}`}>
+                      RÉGIMEN: {data.regime} — VIX {data.vix.toFixed(1)} · VIX/VIX3M {data.vixRatio.toFixed(2)} · {data.vixVelocity}
+                    </div>
+                    <div className="text-xs text-muted mt-1">
+                      {data.regime === "COMPRESIÓN"
+                        ? "El VIX está bajo y estable. Los dealers pueden hedgear eficientemente — las señales GEX son confiables y el multiplicador sobre M5 es favorable (×1.2). Entorno ideal para operar según niveles institucionales."
+                        : data.regime === "TRANSICIÓN"
+                        ? "El VIX está en zona intermedia o en movimiento. Los dealers tienen incertidumbre en su cobertura — las señales GEX tienen confiabilidad moderada. Multiplicador neutro (×1.0): operar con tamaño reducido."
+                        : data.regime === "EXPANSIÓN"
+                        ? "El VIX está elevado o acelerando. El hedging de los dealers se vuelve errático — las señales GEX pierden confiabilidad. Multiplicador penalizador (×0.7): reducir exposición y ampliar stops."
+                        : data.regime === "PÁNICO AGUDO"
+                        ? "VIX en zona de pánico — el mercado está en modo de cobertura masiva. Señales GEX no confiables. Multiplicador (×0.3): solo operar coberturas o permanecer en efectivo."
+                        : "Régimen de crisis sistémica — todas las señales GEX están suspendidas. El correlato entre posicionamiento de opciones y precio rompe. No operar según modelos de opciones hasta normalización."}
+                    </div>
+                  </div>
+
+                  {/* Lead indicators */}
+                  {totalLead > 0 && (
+                    <div className={`border-l-4 pl-4 py-2 ${leadColor}`}>
+                      <div className={`text-sm font-bold ${leadColor.split(" ")[0]}`}>
+                        INDICADORES ADELANTADOS: {leadConsensus} ({stress} estrés · {recovery} recuperación · {totalLead - stress - recovery} neutro)
+                      </div>
+                      <div className="text-xs text-muted mt-1">
+                        {leadConsensus === "ESTRÉS"
+                          ? `${stress} de ${totalLead} tickers de alta beta muestran señales de estrés simultáneamente. Históricamente esta convergencia precede al VIX en 1–3 sesiones — el mercado puede deteriorarse antes de que los índices lo reflejen.`
+                          : leadConsensus === "RECUPERACIÓN"
+                          ? `${recovery} de ${totalLead} indicadores high-beta muestran señales de recuperación. El apetito de riesgo está volviendo antes de que el VIX lo confirme — posible ventana de entrada alcista anticipada.`
+                          : "Los tickers de alta beta no muestran señal unificada. Sin divergencia adelantada respecto al VIX — el mercado está procesando información de forma dispersa."}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Signal suspended */}
+                  {data.signalSuspended && (
+                    <div className="border-l-4 border-danger pl-4 py-2">
+                      <div className="text-sm font-bold text-danger">SEÑALES GEX SUSPENDIDAS — {data.suspendedReason}</div>
+                      <div className="text-xs text-muted mt-1">
+                        En régimen de crisis o pánico extremo, los modelos de GEX pierden validez porque el hedging de los dealers se vuelve no-lineal. No utilizar niveles S/R de M1–M5 hasta que el VIX retorne a zona normal (&lt;25).
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Final verdict */}
+                  {brief && (
+                    <div className={`border-l-4 pl-4 py-2 ${verdictFinalColor}`}>
+                      <div className={`text-sm font-bold ${verdictFinalColor.split(" ")[0]}`}>
+                        VEREDICTO AJUSTADO: {verdictFinal} · SCORE {brief.adjustedScore >= 0 ? "+" : ""}{brief.adjustedScore} · CONVERGENCIA {brief.convergence}/3
+                      </div>
+                      <div className="text-xs text-muted mt-1">
+                        {verdictFinal === "ALCISTA"
+                          ? `Score M5 ajustado por régimen ${data.regime} (×${data.m5Multiplier.toFixed(1)}) da señal alcista con ${brief.convergence}/3 modelos alineados. ${brief.entry ? `Entrada sugerida: $${brief.entry.toFixed(2)} · Objetivo: $${brief.target?.toFixed(2) ?? "—"} · Stop: $${brief.stop?.toFixed(2) ?? "—"}.` : ""}`
+                          : verdictFinal === "BAJISTA"
+                          ? `Score ajustado apunta bajista. El régimen ${data.regime} amplifica la presión vendedora — los dealers están posicionados para vender en rebotes. Considerar cobertura o posición corta si el spot rompe bajo el soporte.`
+                          : verdictFinal === "NO OPERAR"
+                          ? `El régimen ${data.regime} cancela la señal de M5. Aunque el posicionamiento institucional pueda indicar dirección, el entorno de volatilidad hace que el ratio R/R sea desfavorable. Permanecer fuera del mercado.`
+                          : "Señal neutral — el balance entre señales alcistas y bajistas no genera convicción suficiente para operar."}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            );
+          })()}
+
         </main>
       )}
     </div>
