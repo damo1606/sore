@@ -246,7 +246,7 @@ export default function Metodologia6({
         ? `/api/analysis5?ticker=${ticker}&upTo=${expiration}`
         : `/api/analysis5?ticker=${ticker}`;
       const [res6, res5] = await Promise.all([
-        fetch("/api/analysis6"),
+        fetch(`/api/analysis6?ticker=${encodeURIComponent(ticker)}`),
         fetch(url5),
       ]);
       const json6 = await res6.json();
@@ -418,6 +418,101 @@ export default function Metodologia6({
             ))}
             <ChartSummary lines={buildSignalDetailSummary(data)} />
           </div>
+
+          {/* ── INDICADORES ADELANTADOS ──────────────────────────────────────── */}
+          {data.leadIndicators && data.leadIndicators.length > 0 && (
+            <div className="bg-card border border-border p-6">
+              <div className="text-sm text-muted tracking-widest mb-1 font-semibold">
+                INDICADORES ADELANTADOS — HIGH BETA
+              </div>
+              <div className="text-xs text-muted mb-5">
+                Tickers de alta beta que suelen anticipar cambios en volatilidad antes que el VIX
+              </div>
+
+              <div className="space-y-3">
+                {data.leadIndicators.map((ind) => {
+                  const signalColor =
+                    ind.signal === "ESTRÉS"       ? "text-danger border-danger" :
+                    ind.signal === "RECUPERACIÓN" ? "text-accent border-accent" :
+                                                    "text-warning border-warning";
+                  const signalBg =
+                    ind.signal === "ESTRÉS"       ? "bg-danger/10" :
+                    ind.signal === "RECUPERACIÓN" ? "bg-accent/10" :
+                                                    "bg-warning/10";
+                  const change5dColor = ind.change5d >= 0 ? "text-accent" : "text-danger";
+                  const change1dColor = ind.change1d >= 0 ? "text-accent" : "text-danger";
+
+                  return (
+                    <div key={ind.symbol} className="border border-border p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                      {/* Symbol + price */}
+                      <div className="w-24 shrink-0">
+                        <div className="text-sm font-black tracking-widest text-accent">{ind.symbol}</div>
+                        <div className="text-xs font-mono text-muted">${ind.spot.toFixed(2)}</div>
+                      </div>
+
+                      {/* Changes */}
+                      <div className="flex gap-6 shrink-0">
+                        <div>
+                          <div className="text-[10px] text-muted tracking-widest">1D</div>
+                          <div className={`text-sm font-bold font-mono ${change1dColor}`}>
+                            {ind.change1d >= 0 ? "+" : ""}{ind.change1d.toFixed(2)}%
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted tracking-widest">5D</div>
+                          <div className={`text-sm font-bold font-mono ${change5dColor}`}>
+                            {ind.change5d >= 0 ? "+" : ""}{ind.change5d.toFixed(2)}%
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted tracking-widest">GEX</div>
+                          <div className={`text-sm font-bold ${ind.gexSign === "POSITIVO" ? "text-accent" : "text-danger"}`}>
+                            {ind.gexSign === "POSITIVO" ? "▲ POS" : "▼ NEG"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted tracking-widest">PCR</div>
+                          <div className={`text-sm font-bold font-mono ${ind.pcr > 1.2 ? "text-danger" : ind.pcr < 0.8 ? "text-accent" : "text-warning"}`}>
+                            {ind.pcr.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Signal badge */}
+                      <div className={`shrink-0 border px-3 py-1 text-xs font-black tracking-widest ${signalColor} ${signalBg}`}>
+                        {ind.signal === "ESTRÉS" ? "⚠ ESTRÉS" : ind.signal === "RECUPERACIÓN" ? "↑ RECUPERACIÓN" : "— NEUTRO"}
+                      </div>
+
+                      {/* Note */}
+                      <div className="text-xs text-muted flex-1">{ind.leadNote}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Consolidated signal */}
+              {(() => {
+                const stress = data.leadIndicators.filter((i) => i.signal === "ESTRÉS").length;
+                const recovery = data.leadIndicators.filter((i) => i.signal === "RECUPERACIÓN").length;
+                const total = data.leadIndicators.length;
+                if (stress >= 2) return (
+                  <div className="mt-4 border-l-4 border-danger pl-4 py-2 text-sm text-danger font-semibold">
+                    ⚠ {stress}/{total} indicadores en ESTRÉS — señal adelantada de presión sobre el mercado. El VIX puede no reflejarlo aún.
+                  </div>
+                );
+                if (recovery >= 2) return (
+                  <div className="mt-4 border-l-4 border-accent pl-4 py-2 text-sm text-accent font-semibold">
+                    ↑ {recovery}/{total} indicadores en RECUPERACIÓN — el apetito de riesgo está volviendo antes que el VIX lo confirme.
+                  </div>
+                );
+                return (
+                  <div className="mt-4 border-l-4 border-warning pl-4 py-2 text-sm text-warning">
+                    Sin señal adelantada consolidada — mercado sin dirección clara en tickers de alta beta.
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* ── M5 ADJUSTMENT ────────────────────────────────────────────────── */}
           <div className={`bg-card border-2 ${border} p-6`}>

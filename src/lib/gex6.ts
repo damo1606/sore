@@ -26,6 +26,17 @@ export interface RegimeSignal {
   label: string;
 }
 
+export interface LeadIndicator {
+  symbol: string;
+  spot: number;
+  change1d: number;
+  change5d: number;
+  gexSign: "POSITIVO" | "NEGATIVO";
+  pcr: number;
+  signal: "ESTRÉS" | "NEUTRO" | "RECUPERACIÓN";
+  leadNote: string;
+}
+
 export interface Analysis6Result {
   // VIX
   vix: number;
@@ -52,6 +63,9 @@ export interface Analysis6Result {
   // M5 adjustment
   m5Multiplier: number;
   m5AdjustmentLabel: string;
+
+  // Lead indicators
+  leadIndicators: LeadIndicator[];
 }
 
 interface RawOption {
@@ -240,5 +254,36 @@ export function computeRegime(
     signals, regimeScore,
     regime, signalSuspended, suspendedReason,
     m5Multiplier, m5AdjustmentLabel,
+    leadIndicators: [],
   };
+}
+
+export function computeLeadIndicator(
+  symbol: string,
+  spot: number,
+  history: number[],
+  gexTotal: number,
+  pcr: number
+): LeadIndicator {
+  const oldest  = history[0] ?? spot;
+  const prev    = history.length >= 2 ? history[history.length - 2] : spot;
+  const change1d = prev   > 0 ? ((spot - prev)   / prev)   * 100 : 0;
+  const change5d = oldest > 0 ? ((spot - oldest) / oldest) * 100 : 0;
+  const gexSign: "POSITIVO" | "NEGATIVO" = gexTotal >= 0 ? "POSITIVO" : "NEGATIVO";
+
+  let signal: "ESTRÉS" | "NEUTRO" | "RECUPERACIÓN";
+  let leadNote: string;
+
+  if (change5d < -5 || (pcr > 1.3 && gexSign === "NEGATIVO")) {
+    signal   = "ESTRÉS";
+    leadNote = `${change5d.toFixed(1)}% en 5d · GEX ${gexSign} · PCR ${pcr.toFixed(2)} — presión anticipada sobre el mercado`;
+  } else if (change5d > 5 && gexSign === "POSITIVO") {
+    signal   = "RECUPERACIÓN";
+    leadNote = `+${change5d.toFixed(1)}% en 5d · GEX ${gexSign} · PCR ${pcr.toFixed(2)} — apetito de riesgo volviendo`;
+  } else {
+    signal   = "NEUTRO";
+    leadNote = `${change5d >= 0 ? "+" : ""}${change5d.toFixed(1)}% en 5d · GEX ${gexSign} · PCR ${pcr.toFixed(2)} — sin señal adelantada clara`;
+  }
+
+  return { symbol, spot, change1d, change5d, gexSign, pcr, signal, leadNote };
 }

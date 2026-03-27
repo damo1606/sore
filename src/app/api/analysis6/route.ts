@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { computeSpyMetrics, computeRegime } from "@/lib/gex6";
+import { computeSpyMetrics, computeRegime, computeLeadIndicator } from "@/lib/gex6";
 
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -39,59 +39,81 @@ async function fetchHistory(
   return { current: valid[valid.length - 1] ?? 0, history: valid };
 }
 
-/** Fetch SPY options chain (primary expiration) */
-async function fetchSpyOptions(cookie: string, crumb: string) {
-  const url = `https://query2.finance.yahoo.com/v7/finance/options/SPY?crumb=${crumb}`;
+/** Fetch options chain for any ticker (primary expiration) */
+async function fetchTickerOptions(symbol: string, cookie: string, crumb: string) {
+  const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?crumb=${crumb}`;
   const res = await fetch(url, { headers: { ...HEADERS, Cookie: cookie }, cache: "no-store" });
-  if (!res.ok) throw new Error(`Could not fetch SPY options (${res.status})`);
+  if (!res.ok) throw new Error(`Could not fetch ${symbol} options (${res.status})`);
   const json = await res.json();
   const result = json?.optionChain?.result?.[0];
-  if (!result) throw new Error("No SPY options data");
+  if (!result) throw new Error(`No options data for ${symbol}`);
   return result;
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
+    const ticker = request.nextUrl.searchParams.get("ticker")?.toUpperCase() ?? "";
+    const leadSymbols = Array.from(new Set(["TSLA", "AMD", ticker].filter((s) => s && s !== "SPY")));
+
     const { crumb, cookie } = await getCredentials();
 
-    // Fetch VIX, VIX3M, and SPY options in parallel
-    const [vixData, vix3mData, spyResult] = await Promise.all([
+    // Fetch VIX, VIX3M, SPY options, and lead ticker data in parallel
+    const [vixData, vix3mData, spyResult, ...leadRaw] = await Promise.all([
       fetchHistory("^VIX",  cookie, crumb, "5d"),
       fetchHistory("^VIX3M", cookie, crumb, "5d").catch(() => ({ current: 0, history: [] as number[] })),
-      fetchSpyOptions(cookie, crumb),
+      fetchTickerOptions("SPY", cookie, crumb),
+      ...leadSymbols.map((sym) =>
+        Promise.all([
+          fetchHistory(sym, cookie, crumb, "5d").catch(() => ({ current: 0, history: [] as number[] })),
+          fetchTickerOptions(sym, cookie, crumb).catch(() => null),
+        ])
+      ),
     ]);
 
-    const vix   = vixData.current;
-    const vix3m = vix3mData.current > 0 ? vix3mData.current : vix * 1.05; // fallback: 5% premium
+    const vix        = vixData.current;
+    const vix3m      = vix3mData.current > 0 ? vix3mData.current : vix * 1.05;
     const vixHistory = vixData.history;
 
     const spySpot: number = spyResult.quote?.regularMarketPrice ?? 0;
     const optData = spyResult.options?.[0];
-
     if (!optData) throw new Error("No SPY options chain");
 
-    const today = new Date();
+    const today  = new Date();
     const expTs: number = spyResult.expirationDates?.[0] ?? 0;
     const expDate = new Date(expTs * 1000);
-    const T = Math.max(
-      (expDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000),
-      0.001
-    );
+    const T = Math.max((expDate.getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000), 0.001);
 
     const calls = (optData.calls ?? []).map((c: any) => ({
-      strike: c.strike ?? 0,
-      impliedVolatility: c.impliedVolatility ?? 0,
-      openInterest: c.openInterest ?? 0,
+      strike: c.strike ?? 0, impliedVolatility: c.impliedVolatility ?? 0, openInterest: c.openInterest ?? 0,
     }));
     const puts = (optData.puts ?? []).map((p: any) => ({
-      strike: p.strike ?? 0,
-      impliedVolatility: p.impliedVolatility ?? 0,
-      openInterest: p.openInterest ?? 0,
+      strike: p.strike ?? 0, impliedVolatility: p.impliedVolatility ?? 0, openInterest: p.openInterest ?? 0,
     }));
 
     const { gexTotal: spyGexTotal, pcr: spyPcr } = computeSpyMetrics(calls, puts, spySpot, T);
-
     const result = computeRegime(vix, vix3m, vixHistory, spyGexTotal, spyPcr, spySpot);
+
+    // Compute lead indicators
+    result.leadIndicators = leadRaw.map(([histData, optResult], i) => {
+      const sym   = leadSymbols[i];
+      const spot  = (histData as any).current ?? 0;
+      const hist  = (histData as any).history ?? [];
+
+      if (!optResult || spot === 0) {
+        return { symbol: sym, spot: 0, change1d: 0, change5d: 0, gexSign: "NEGATIVO" as const, pcr: 1, signal: "NEUTRO" as const, leadNote: "Sin datos disponibles" };
+      }
+
+      const expTs2: number = optResult.expirationDates?.[0] ?? 0;
+      const T2 = Math.max((new Date(expTs2 * 1000).getTime() - today.getTime()) / (365 * 24 * 60 * 60 * 1000), 0.001);
+      const optData2 = optResult.options?.[0];
+      if (!optData2) return { symbol: sym, spot, change1d: 0, change5d: 0, gexSign: "NEGATIVO" as const, pcr: 1, signal: "NEUTRO" as const, leadNote: "Sin cadena de opciones" };
+
+      const c2 = (optData2.calls ?? []).map((c: any) => ({ strike: c.strike ?? 0, impliedVolatility: c.impliedVolatility ?? 0, openInterest: c.openInterest ?? 0 }));
+      const p2 = (optData2.puts  ?? []).map((p: any) => ({ strike: p.strike ?? 0, impliedVolatility: p.impliedVolatility ?? 0, openInterest: p.openInterest ?? 0 }));
+      const { gexTotal, pcr } = computeSpyMetrics(c2, p2, spot, T2);
+
+      return computeLeadIndicator(sym, spot, hist, gexTotal, pcr);
+    });
 
     return NextResponse.json(result);
   } catch (e: any) {
