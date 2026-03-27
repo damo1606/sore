@@ -206,6 +206,66 @@ export default function Metodologia1({
               <VannaChart data={data.vannaProfile} spot={data.spot} />
             </div>
           </div>
+
+          {/* ── RESUMEN M1 ─────────────────────────────────────────────────────── */}
+          <div className="bg-card border border-border p-6">
+            <div className="text-sm text-muted tracking-widest mb-4 font-semibold">RESUMEN — INTERPRETACIÓN</div>
+            <div className="space-y-3">
+
+              {/* Gamma regime */}
+              <div className={`border-l-4 pl-4 py-2 ${isPositiveGamma ? "border-accent" : "border-danger"}`}>
+                <div className={`text-sm font-bold ${isPositiveGamma ? "text-accent" : "text-danger"}`}>
+                  {isPositiveGamma ? "GAMMA POSITIVO — RÉGIMEN ESTABILIZADOR" : "GAMMA NEGATIVO — RÉGIMEN AMPLIFICADOR"}
+                </div>
+                <div className="text-xs text-muted mt-1">
+                  {isPositiveGamma
+                    ? `Spot ($${data.spot.toFixed(2)}) cotiza sobre el Gamma Flip ($${data.levels.gammaFlip.toFixed(2)}). Los dealers son net-long gamma y actúan como estabilizadores — venden en rebotes, compran en caídas. Esperar rangos contenidos.`
+                    : `Spot ($${data.spot.toFixed(2)}) cotiza bajo el Gamma Flip ($${data.levels.gammaFlip.toFixed(2)}). Los dealers son net-short gamma y amplifican movimientos — venden en caídas, compran en subidas. Esperar mayor volatilidad.`}
+                </div>
+              </div>
+
+              {/* Institutional pressure */}
+              <div className={`border-l-4 pl-4 py-2 ${data.institutionalPressure >= 5 ? "border-accent" : data.institutionalPressure <= -5 ? "border-danger" : "border-warning"}`}>
+                <div className={`text-sm font-bold ${data.institutionalPressure >= 5 ? "text-accent" : data.institutionalPressure <= -5 ? "text-danger" : "text-warning"}`}>
+                  PRESIÓN INSTITUCIONAL: {data.institutionalPressure >= 0 ? "+" : ""}{data.institutionalPressure.toFixed(1)}%
+                </div>
+                <div className="text-xs text-muted mt-1">
+                  {data.institutionalPressure >= 20
+                    ? "Los dealers están fuertemente posicionados al alza. Soporte institucional sólido bajo el precio actual."
+                    : data.institutionalPressure >= 5
+                    ? "Sesgo alcista moderado. Los dealers tienen más cobertura de calls que puts — soporte institucional presente."
+                    : data.institutionalPressure >= -5
+                    ? "Posicionamiento neutral. El mercado está en equilibrio entre compradores y vendedores de protección."
+                    : data.institutionalPressure >= -20
+                    ? "Sesgo bajista moderado. Los dealers tienen más cobertura de puts — presión vendedora latente."
+                    : "Presión bajista fuerte. Los dealers están fuertemente expuestos a caídas y amplifican movimientos negativos."}
+                </div>
+              </div>
+
+              {/* Nearest key level */}
+              {(() => {
+                const levels = [
+                  { label: "CALL WALL",   value: data.levels.callWall },
+                  { label: "RESISTENCIA", value: data.levels.resistance },
+                  { label: "GAMMA FLIP",  value: data.levels.gammaFlip },
+                  { label: "SOPORTE",     value: data.levels.support },
+                  { label: "PUT WALL",    value: data.levels.putWall },
+                ];
+                const nearest = levels.reduce((a, b) =>
+                  Math.abs(a.value - data.spot) < Math.abs(b.value - data.spot) ? a : b
+                );
+                const pct = (nearest.value - data.spot) / data.spot * 100;
+                return (
+                  <div className="border-l-4 border-warning pl-4 py-2">
+                    <div className="text-sm font-bold text-warning">NIVEL MÁS CERCANO: {nearest.label}</div>
+                    <div className="text-xs text-muted mt-1">
+                      ${nearest.value.toFixed(2)} — a {Math.abs(pct).toFixed(2)}% {pct >= 0 ? "sobre" : "bajo"} el precio actual. Este nivel actúa como imán magnético para el precio y puede generar reacciones fuertes al tocarse.
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
         </main>
       )}
     </div>

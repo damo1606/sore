@@ -253,6 +253,51 @@ export default function Metodologia4({
             <SkewPanel data={data} />
           </div>
 
+          {/* ── RESUMEN M4 ─────────────────────────────────────────────────────── */}
+          {(() => {
+            let totalCallOI = 0, totalPutOI = 0;
+            const strikeMap = new Map<number, number>();
+            for (const cell of data.cells) {
+              totalCallOI += cell.callOI;
+              totalPutOI  += cell.putOI;
+              strikeMap.set(cell.strike, (strikeMap.get(cell.strike) ?? 0) + cell.callOI + cell.putOI);
+            }
+            const topStrike = [...strikeMap.entries()].sort((a, b) => b[1] - a[1])[0];
+            const totalOI   = totalCallOI + totalPutOI;
+            const callPct   = totalOI > 0 ? (totalCallOI / totalOI * 100) : 50;
+            const putPct    = totalOI > 0 ? (totalPutOI  / totalOI * 100) : 50;
+            const bias      = callPct > 55 ? "ALCISTA" : putPct > 55 ? "BAJISTA" : "NEUTRAL";
+            const biasColor = bias === "ALCISTA" ? "text-accent border-accent" : bias === "BAJISTA" ? "text-danger border-danger" : "text-warning border-warning";
+            return (
+              <div className="bg-card border border-border p-6">
+                <div className="text-sm text-muted tracking-widest mb-4 font-semibold">RESUMEN — INTERPRETACIÓN</div>
+                <div className="space-y-3">
+                  <div className={`border-l-4 pl-4 py-2 ${biasColor}`}>
+                    <div className={`text-sm font-bold ${biasColor.split(" ")[0]}`}>
+                      SESGO GLOBAL: CALLS {callPct.toFixed(0)}% · PUTS {putPct.toFixed(0)}% — {bias}
+                    </div>
+                    <div className="text-xs text-muted mt-1">
+                      {bias === "ALCISTA"
+                        ? "El open interest acumulado en calls supera al de puts en todos los vencimientos. El mercado institucional está posicionado predominantemente al alza."
+                        : bias === "BAJISTA"
+                        ? "El open interest en puts domina ampliamente. Los participantes institucionales están comprando protección bajista a través de múltiples vencimientos."
+                        : "El open interest está distribuido equilibradamente entre calls y puts. No hay sesgo institucional claro en ninguna dirección."}
+                    </div>
+                  </div>
+                  {topStrike && (
+                    <div className="border-l-4 border-warning pl-4 py-2">
+                      <div className="text-sm font-bold text-warning">
+                        STRIKE DE MAYOR CONCENTRACIÓN: ${topStrike[0]}
+                      </div>
+                      <div className="text-xs text-muted mt-1">
+                        El strike ${topStrike[0]} acumula el mayor open interest combinado entre todos los vencimientos. Actúa como imán de precio (pin risk) y puede funcionar como soporte o resistencia magnética en el vencimiento más cercano.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </main>
       )}
     </div>

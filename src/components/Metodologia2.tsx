@@ -226,6 +226,50 @@ export default function Metodologia2({
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {/* ── RESUMEN M2 ─────────────────────────────────────────────────────── */}
+          {(() => {
+            const rangeAmp = (data.resistance - data.support) / data.spot * 100;
+            const posInRange = data.resistance > data.support
+              ? (data.spot - data.support) / (data.resistance - data.support) * 100
+              : 50;
+            const midIdx = Math.floor(data.filteredStrikes.length / 2);
+            const lastPCR = data.filteredStrikes[midIdx]?.pcr ?? 1;
+            const pcrSignal = lastPCR > 1.2 ? "BAJISTA" : lastPCR < 0.8 ? "ALCISTA" : "NEUTRAL";
+            const pcrColor  = lastPCR > 1.2 ? "text-danger border-danger" : lastPCR < 0.8 ? "text-accent border-accent" : "text-warning border-warning";
+            const rangeColor = posInRange > 70 ? "text-danger border-danger" : posInRange < 30 ? "text-accent border-accent" : "text-warning border-warning";
+            return (
+              <div className="bg-card border border-border p-6">
+                <div className="text-sm text-muted tracking-widest mb-4 font-semibold">RESUMEN — INTERPRETACIÓN</div>
+                <div className="space-y-3">
+                  <div className={`border-l-4 pl-4 py-2 ${rangeColor}`}>
+                    <div className={`text-sm font-bold ${rangeColor.split(" ")[0]}`}>
+                      POSICIÓN EN RANGO: {posInRange.toFixed(0)}% · AMPLITUD {rangeAmp.toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-muted mt-1">
+                      {posInRange > 70
+                        ? `Spot cerca de la resistencia ($${data.resistance.toFixed(2)}). El precio está en la parte alta del rango de opciones — probabilidad de rechazo o consolidación.`
+                        : posInRange < 30
+                        ? `Spot cerca del soporte ($${data.support.toFixed(2)}). El precio está en la parte baja del rango — zona con potencial rebote institucional.`
+                        : `Spot en zona media del rango ($${data.support.toFixed(2)} – $${data.resistance.toFixed(2)}). Sin presión clara desde ninguno de los extremos.`}
+                    </div>
+                  </div>
+                  <div className={`border-l-4 pl-4 py-2 ${pcrColor}`}>
+                    <div className={`text-sm font-bold ${pcrColor.split(" ")[0]}`}>
+                      PCR (PUT/CALL RATIO): {lastPCR.toFixed(2)} — SESGO {pcrSignal}
+                    </div>
+                    <div className="text-xs text-muted mt-1">
+                      {lastPCR > 1.2
+                        ? "El volumen de puts supera ampliamente al de calls. El mercado está comprando protección bajista — señal de precaución."
+                        : lastPCR < 0.8
+                        ? "El volumen de calls supera al de puts. Los participantes están posicionándose al alza con más agresividad."
+                        : "El ratio puts/calls está en zona neutral. Sin sesgo direccional claro en el posicionamiento de opciones."}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </main>
       )}
     </div>
