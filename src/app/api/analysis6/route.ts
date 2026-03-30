@@ -57,11 +57,13 @@ export async function GET(request: NextRequest) {
 
     const { crumb, cookie } = await getCredentials();
 
-    // Fetch VIX, VIX3M, SPY options, and lead ticker data in parallel
-    const [vixData, vix3mData, spyResult, ...leadRaw] = await Promise.all([
+    // Fetch VIX, VIX3M, SPY options, HYG, SPY history, and lead ticker data in parallel
+    const [vixData, vix3mData, spyResult, hygData, spyHistory, ...leadRaw] = await Promise.all([
       fetchHistory("^VIX",  cookie, crumb, "5d"),
       fetchHistory("^VIX3M", cookie, crumb, "5d").catch(() => ({ current: 0, history: [] as number[] })),
       fetchTickerOptions("SPY", cookie, crumb),
+      fetchHistory("HYG", cookie, crumb, "5d").catch(() => ({ current: 0, history: [] as number[] })),
+      fetchHistory("SPY", cookie, crumb, "3mo").catch(() => ({ current: 0, history: [] as number[] })),
       ...leadSymbols.map((sym) =>
         Promise.all([
           fetchHistory(sym, cookie, crumb, "5d").catch(() => ({ current: 0, history: [] as number[] })),
@@ -73,6 +75,19 @@ export async function GET(request: NextRequest) {
     const vix        = vixData.current;
     const vix3m      = vix3mData.current > 0 ? vix3mData.current : vix * 1.05;
     const vixHistory = vixData.history;
+
+    // HYG 5d change
+    const hygHistory = (hygData as any).history as number[];
+    const hygOldest  = hygHistory[0] ?? 0;
+    const hygCurrent = (hygData as any).current as number;
+    const hygChange5d = hygOldest > 0 ? ((hygCurrent - hygOldest) / hygOldest) * 100 : 0;
+
+    // SPY vs SMA50
+    const spyHistArr = (spyHistory as any).history as number[];
+    const spyCurrent = (spyHistory as any).current as number;
+    const last50 = spyHistArr.slice(-50);
+    const sma50  = last50.length > 0 ? last50.reduce((a: number, b: number) => a + b, 0) / last50.length : spyCurrent;
+    const spyVsSma50 = sma50 > 0 ? ((spyCurrent - sma50) / sma50) * 100 : 0;
 
     const spySpot: number = spyResult.quote?.regularMarketPrice ?? 0;
     const optData = spyResult.options?.[0];
@@ -91,7 +106,7 @@ export async function GET(request: NextRequest) {
     }));
 
     const { gexTotal: spyGexTotal, pcr: spyPcr } = computeSpyMetrics(calls, puts, spySpot, T);
-    const result = computeRegime(vix, vix3m, vixHistory, spyGexTotal, spyPcr, spySpot);
+    const result = computeRegime(vix, vix3m, vixHistory, spyGexTotal, spyPcr, spySpot, hygChange5d, spyVsSma50);
 
     // Compute lead indicators
     result.leadIndicators = leadRaw.map(([histData, optResult], i) => {

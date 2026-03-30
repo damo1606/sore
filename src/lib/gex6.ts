@@ -37,6 +37,20 @@ export interface LeadIndicator {
   leadNote: string;
 }
 
+export type FearLabel =
+  | "CODICIA EXTREMA"
+  | "CODICIA"
+  | "NEUTRAL"
+  | "MIEDO"
+  | "MIEDO EXTREMO";
+
+export interface FearComponent {
+  name: string;
+  score: number;    // 0-100
+  weight: number;
+  note: string;
+}
+
 export interface Analysis6Result {
   // VIX
   vix: number;
@@ -66,6 +80,11 @@ export interface Analysis6Result {
 
   // Lead indicators
   leadIndicators: LeadIndicator[];
+
+  // Fear Score
+  fearScore: number;        // 0-100 (0=miedo extremo, 100=codicia extrema)
+  fearLabel: FearLabel;
+  fearComponents: FearComponent[];
 }
 
 interface RawOption {
@@ -115,6 +134,75 @@ export function computeSpyMetrics(
   return { gexTotal, pcr };
 }
 
+export function computeFearScore(
+  vix: number,
+  vixRatio: number,
+  spyGexTotal: number,
+  spyPcr: number,
+  hygChange5d: number,   // % change of HYG over 5 days
+  spyVsSma50: number,    // % distance of SPY from its 50-day SMA (positive = above)
+): { fearScore: number; fearLabel: FearLabel; fearComponents: FearComponent[] } {
+
+  // Component 1: VIX nivel (25%)
+  const vixC =
+    vix < 15 ? 100 :
+    vix < 20 ? 75 :
+    vix < 25 ? 50 :
+    vix < 35 ? 20 : 0;
+
+  // Component 2: Term structure VIX/VIX3M (20%)
+  const termC =
+    vixRatio < 0.85 ? 100 :
+    vixRatio < 0.95 ? 75 :
+    vixRatio < 1.05 ? 50 :
+    vixRatio < 1.20 ? 20 : 0;
+
+  // Component 3: SPY GEX (20%)
+  const gexC = spyGexTotal > 0 ? 75 : 25;
+
+  // Component 4: SPY PCR (15%)
+  const pcrC =
+    spyPcr < 0.7  ? 100 :
+    spyPcr < 1.0  ? 70 :
+    spyPcr < 1.5  ? 30 : 0;
+
+  // Component 5: HYG 5d change (10%) — credit appetite
+  const hygC =
+    hygChange5d >  1.0 ? 90 :
+    hygChange5d >  0.0 ? 65 :
+    hygChange5d > -1.0 ? 40 :
+    hygChange5d > -2.0 ? 15 : 0;
+
+  // Component 6: SPY vs SMA50 (10%)
+  const smaC = spyVsSma50 > 2 ? 90 : spyVsSma50 > 0 ? 65 : spyVsSma50 > -3 ? 35 : 10;
+
+  const fearScore = Math.round(
+    vixC  * 0.25 +
+    termC * 0.20 +
+    gexC  * 0.20 +
+    pcrC  * 0.15 +
+    hygC  * 0.10 +
+    smaC  * 0.10
+  );
+
+  const fearLabel: FearLabel =
+    fearScore <= 20 ? "MIEDO EXTREMO" :
+    fearScore <= 40 ? "MIEDO" :
+    fearScore <= 60 ? "NEUTRAL" :
+    fearScore <= 80 ? "CODICIA" : "CODICIA EXTREMA";
+
+  const fearComponents: FearComponent[] = [
+    { name: "VIX NIVEL",       score: vixC,  weight: 0.25, note: `VIX ${vix.toFixed(1)} — ${vixC >= 75 ? "baja volatilidad, entorno de calma" : vixC >= 50 ? "volatilidad moderada" : vixC >= 20 ? "volatilidad elevada" : "pánico"}` },
+    { name: "TERM STRUCTURE",  score: termC, weight: 0.20, note: `VIX/VIX3M ${vixRatio.toFixed(2)} — ${vixRatio < 1 ? "contango, mercado descuenta calma" : "backwardation, miedo a corto plazo"}` },
+    { name: "SPY GEX",         score: gexC,  weight: 0.20, note: `GEX ${spyGexTotal >= 0 ? "positivo" : "negativo"} — dealers ${spyGexTotal >= 0 ? "estabilizan el mercado" : "amplifican movimientos"}` },
+    { name: "PUT/CALL RATIO",  score: pcrC,  weight: 0.15, note: `PCR ${spyPcr.toFixed(2)} — ${spyPcr < 0.7 ? "complacencia, pocos puts" : spyPcr < 1.0 ? "equilibrado" : spyPcr < 1.5 ? "cobertura elevada" : "hedging masivo"}` },
+    { name: "CRÉDITO (HYG)",   score: hygC,  weight: 0.10, note: `HYG ${hygChange5d >= 0 ? "+" : ""}${hygChange5d.toFixed(2)}% en 5d — ${hygChange5d > 0 ? "apetito de riesgo en crédito" : "flight to safety en bonos"}` },
+    { name: "SPY vs SMA50",    score: smaC,  weight: 0.10, note: `SPY ${spyVsSma50 >= 0 ? "+" : ""}${spyVsSma50.toFixed(1)}% vs SMA50 — ${spyVsSma50 > 0 ? "por encima de media, tendencia alcista" : "bajo media, presión bajista"}` },
+  ];
+
+  return { fearScore, fearLabel, fearComponents };
+}
+
 export function computeRegime(
   vix: number,
   vix3m: number,
@@ -122,6 +210,8 @@ export function computeRegime(
   spyGexTotal: number,
   spyPcr: number,
   spySpot: number,
+  hygChange5d = 0,
+  spyVsSma50 = 0,
 ): Analysis6Result {
   // ── VIX velocity ────────────────────────────────────────────────────────
   const oldest = vixHistory[0] ?? vix;
@@ -248,6 +338,10 @@ export function computeRegime(
       m5AdjustmentLabel = "Score M5 ajustado ×1.2 — compresión favorece la adherencia a niveles institucionales";
   }
 
+  const { fearScore, fearLabel, fearComponents } = computeFearScore(
+    vix, vixRatio, spyGexTotal, spyPcr, hygChange5d, spyVsSma50
+  );
+
   return {
     vix, vix3m, vixRatio, vixChange1d, vixChange5d, vixVelocity,
     spySpot, spyGexTotal, spyPcr,
@@ -255,6 +349,7 @@ export function computeRegime(
     regime, signalSuspended, suspendedReason,
     m5Multiplier, m5AdjustmentLabel,
     leadIndicators: [],
+    fearScore, fearLabel, fearComponents,
   };
 }
 

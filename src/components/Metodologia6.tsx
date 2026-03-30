@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Analysis6Result, RegimeSignal, RegimeType } from "@/lib/gex6";
+import type { Analysis6Result, RegimeSignal, RegimeType, FearLabel, FearComponent } from "@/lib/gex6";
 import type { Analysis5Result } from "@/lib/gex5";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -45,6 +45,84 @@ function ChartSummary({ lines }: { lines: string[] }) {
           {line}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Fear & Greed gauge ───────────────────────────────────────────────────────
+function fearColor(score: number): string {
+  if (score <= 20) return "text-danger";
+  if (score <= 40) return "text-orange-500";
+  if (score <= 60) return "text-warning";
+  if (score <= 80) return "text-accent";
+  return "text-accent";
+}
+
+function fearBgColor(score: number): string {
+  if (score <= 20) return "bg-danger";
+  if (score <= 40) return "bg-orange-500";
+  if (score <= 60) return "bg-warning";
+  return "bg-accent";
+}
+
+function FearGauge({ score, label, components }: { score: number; label: FearLabel; components: FearComponent[] }) {
+  const pct = score;
+  const color = fearColor(score);
+  const bgColor = fearBgColor(score);
+
+  return (
+    <div>
+      {/* Score + label */}
+      <div className="flex items-end gap-4 mb-4">
+        <div className={`text-7xl font-black ${color}`}>{score}</div>
+        <div className="mb-2">
+          <div className={`text-xl font-black tracking-widest ${color}`}>{label}</div>
+          <div className="text-xs text-muted tracking-widest">0 = MIEDO EXTREMO · 100 = CODICIA EXTREMA</div>
+        </div>
+      </div>
+
+      {/* Main bar */}
+      <div className="relative w-full h-6 bg-surface border border-border rounded-sm overflow-hidden mb-2">
+        {/* Gradient zones */}
+        <div className="absolute inset-0 flex">
+          <div className="h-full bg-danger opacity-30"     style={{ width: "20%" }} />
+          <div className="h-full bg-orange-500 opacity-25" style={{ width: "20%" }} />
+          <div className="h-full bg-warning opacity-20"    style={{ width: "20%" }} />
+          <div className="h-full bg-accent opacity-15"     style={{ width: "20%" }} />
+          <div className="h-full bg-accent opacity-25"     style={{ width: "20%" }} />
+        </div>
+        {/* Needle */}
+        <div
+          className={`absolute top-1 bottom-1 w-1.5 rounded-sm ${bgColor} z-10 -translate-x-1/2 transition-all`}
+          style={{ left: `${pct}%` }}
+        />
+      </div>
+
+      {/* Zone labels */}
+      <div className="flex justify-between text-[10px] text-muted mb-5">
+        <span>MIEDO EXTREMO</span>
+        <span>MIEDO</span>
+        <span>NEUTRAL</span>
+        <span>CODICIA</span>
+        <span>CODICIA EXTREMA</span>
+      </div>
+
+      {/* Component breakdown */}
+      <div className="space-y-2">
+        {components.map((c) => {
+          const cBg = fearBgColor(c.score);
+          return (
+            <div key={c.name} className="flex items-center gap-3">
+              <div className="text-[10px] text-muted tracking-wider w-32 shrink-0">{c.name}</div>
+              <div className="flex-1 h-2 bg-surface border border-border">
+                <div className={`h-full ${cBg} transition-all`} style={{ width: `${c.score}%` }} />
+              </div>
+              <div className={`text-xs font-bold w-8 text-right shrink-0 ${fearColor(c.score)}`}>{c.score}</div>
+              <div className="text-[10px] text-muted flex-1 hidden sm:block">{c.note}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -397,6 +475,17 @@ export default function Metodologia6({
                  data.spyPcr < 0.7 ? "Complacencia especulativa" : "Posicionamiento equilibrado"}
               </div>
             </div>
+          </div>
+
+          {/* ── FEAR & GREED SCORE ───────────────────────────────────────────── */}
+          <div className={`bg-card border-2 p-6 ${data.fearScore <= 20 ? "border-danger" : data.fearScore <= 40 ? "border-orange-500" : data.fearScore <= 60 ? "border-warning" : "border-accent"}`}>
+            <div className="text-sm text-muted tracking-widest mb-1 font-semibold">
+              SORE FEAR & GREED SCORE
+            </div>
+            <div className="text-xs text-muted mb-5">
+              VIX · Term Structure · GEX · PCR · Crédito (HYG) · SPY vs SMA50
+            </div>
+            <FearGauge score={data.fearScore} label={data.fearLabel} components={data.fearComponents} />
           </div>
 
           {/* ── SIGNAL BREAKDOWN ─────────────────────────────────────────────── */}
