@@ -8,6 +8,18 @@ import DealerFlowChart from "@/components/DealerFlowChart";
 import VannaChart from "@/components/VannaChart";
 import CandlestickChart from "@/components/CandlestickChart";
 
+function ChartSummary({ lines }: { lines: string[] }) {
+  return (
+    <div className="mt-5 border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-5 gap-2">
+      {lines.map((line, i) => (
+        <div key={i} className="text-xs text-muted leading-relaxed px-2 border-l-2 border-border">
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface Candle {
   time: string;
   open: number;
@@ -182,6 +194,13 @@ export default function Metodologia1({
               PRECIO — VELAS JAPONESAS + NIVELES INSTITUCIONALES (3 MESES)
             </div>
             <CandlestickChart candles={candles} levels={data.levels} spot={data.spot} />
+            <ChartSummary lines={[
+              `El precio actual ($${data.spot.toFixed(2)}) se compara visualmente contra los 5 niveles institucionales derivados del posicionamiento de opciones. Cada nivel tiene una función específica en la dinámica de cobertura de los dealers.`,
+              `Call Wall ($${data.levels.callWall.toFixed(2)}): zona de máxima concentración de calls. Los dealers venden delta cuando el precio se acerca — genera resistencia mecánica por hedging.`,
+              `Gamma Flip ($${data.levels.gammaFlip.toFixed(2)}): línea divisoria entre gamma positivo (estabilizador) y negativo (amplificador). Un cruce de este nivel cambia el régimen de volatilidad estructural.`,
+              `Put Wall ($${data.levels.putWall.toFixed(2)}): zona de máxima concentración de puts. Los dealers compran delta en caídas — genera soporte mecánico por hedging de opciones put.`,
+              `Soporte ($${data.levels.support.toFixed(2)}) y Resistencia ($${data.levels.resistance.toFixed(2)}) son los niveles de mayor presión institucional neta. El precio tiende a rebotar en el soporte y rechazarse en la resistencia.`,
+            ]} />
           </div>
 
           <div className="bg-card border border-border p-6">
@@ -189,6 +208,13 @@ export default function Metodologia1({
               PERFIL DE GAMMA EXPOSURE — GEX POR STRIKE
             </div>
             <GexChart data={data.gexProfile} spot={data.spot} levels={data.levels} />
+            <ChartSummary lines={[
+              "GEX (Gamma Exposure) mide en dólares la exposición gamma neta de los dealers por strike. GEX positivo (verde) = dealers largos gamma → estabilizan el precio comprando en caídas y vendiendo en subidas.",
+              "GEX negativo (rojo) = dealers cortos gamma → amplifican movimientos vendiendo en caídas y comprando en subidas. Las zonas rojas son peligrosas: los dealers aceleran el movimiento en lugar de frenarlo.",
+              `El Gamma Flip en $${data.levels.gammaFlip.toFixed(2)} es el punto donde el GEX neto de toda la cadena cambia de signo. Sobre el flip = entorno amortiguado. Bajo el flip = entorno amplificado con mayor riesgo de gaps.`,
+              "La altura de cada barra refleja la magnitud del hedging automático. Barras altas = mayor actividad de cobertura → el precio tiene mayor probabilidad de ser magnetizado hacia ese strike al vencimiento.",
+              `El nivel de soporte ($${data.levels.support.toFixed(2)}) coincide con el strike de mayor GEX positivo. El nivel de resistencia ($${data.levels.resistance.toFixed(2)}) con el de mayor GEX negativo o menor GEX positivo.`,
+            ]} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -200,10 +226,24 @@ export default function Metodologia1({
                 spot={data.spot}
                 gammaFlip={data.levels.gammaFlip}
               />
+              <ChartSummary lines={[
+                "Este modelo simula el flujo de cobertura (delta hedging) que los dealers ejecutan en función del precio. Flujo positivo = dealers comprando acciones para cubrir su exposición gamma. Flujo negativo = dealers vendiendo.",
+                `Por encima del Gamma Flip ($${data.levels.gammaFlip.toFixed(2)}), el flujo de dealers es contrarrestador: compran cuando el precio cae y venden cuando sube. Este comportamiento comprime la volatilidad.`,
+                `Por debajo del Gamma Flip ($${data.levels.gammaFlip.toFixed(2)}), el flujo es amplificador: los dealers venden cuando el precio cae (aceleran la bajada) y compran cuando sube (aceleran la subida).`,
+                "La pendiente del flujo indica la velocidad de reacción de los dealers. Una pendiente pronunciada significa que pequeños movimientos en el precio generan grandes flujos de cobertura — entorno de alta sensibilidad.",
+                "El cruce del flujo por cero coincide aproximadamente con el Gamma Flip. Identificar este punto permite anticipar qué lado del mercado tiene soporte mecánico de los dealers en cada momento.",
+              ]} />
             </div>
             <div className="bg-card border border-border p-6">
               <div className="text-sm text-muted tracking-widest mb-5 font-semibold">EXPOSICIÓN VANNA POR STRIKE</div>
               <VannaChart data={data.vannaProfile} spot={data.spot} />
+              <ChartSummary lines={[
+                "Vanna mide la sensibilidad del delta de una opción respecto a cambios en la volatilidad implícita (IV). Cuando la IV sube, las opciones ganan delta → los dealers deben reajustar su cobertura comprando o vendiendo el subyacente.",
+                "Vanna positiva (verde): cuando la IV baja, el delta disminuye → dealers venden acciones para cubrir. Cuando la IV sube, el delta aumenta → dealers compran. En rally con compresión de IV, la vanna positiva genera ventas mecánicas.",
+                "Vanna negativa (roja): efecto opuesto. Un aumento de IV genera ventas de acciones por parte de los dealers — amplifica caídas en mercados con alta volatilidad implícita.",
+                "Los strikes con mayor vanna absoluta son los más sensibles a cambios en IV. Si el VIX sube bruscamente, estos strikes generarán los mayores flujos de rebalanceo — pueden actuar como catalizadores de movimiento.",
+                "Combinar el perfil Vanna con el régimen de VIX (M6) permite anticipar qué strikes generarán más actividad de cobertura en función de si la volatilidad está comprimiendo o expandiéndose.",
+              ]} />
             </div>
           </div>
 

@@ -19,6 +19,18 @@ interface Candle {
 
 const fmtB = (v: number) => `${(v / 1e9).toFixed(2)}B`;
 
+function ChartSummary({ lines }: { lines: string[] }) {
+  return (
+    <div className="mt-5 border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-5 gap-2">
+      {lines.map((line, i) => (
+        <div key={i} className="text-xs text-muted leading-relaxed px-2 border-l-2 border-border">
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Metodologia2({
   ticker,
   expiration,
@@ -175,6 +187,13 @@ export default function Metodologia2({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            <ChartSummary lines={[
+              `GEX positivo (verde) = dealers largos gamma en ese strike → compran delta cuando el precio cae. Actúa como soporte mecánico. GEX negativo (rojo) = dealers cortos gamma → amplifican movimientos.`,
+              `Soporte en $${data.support.toFixed(2)}: strike con mayor GEX positivo en el vencimiento analizado. Los dealers tienen la mayor cantidad de calls vendidas aquí — su cobertura estabiliza el precio.`,
+              `Resistencia en $${data.resistance.toFixed(2)}: strike con mayor presión gamma negativa. Los dealers están cortos en gamma aquí — cuando el precio llega, el hedging amplifica el movimiento en lugar de frenarlo.`,
+              "La distribución del GEX define el mapa de fuerzas del mercado. Zonas con muchas barras verdes seguidas = canal de compresión. Zonas alternas de verde/rojo = mercado errático con pocos niveles claros.",
+              `Rango analizado: ±10% del spot ($${data.spot.toFixed(2)}). Strikes fuera de este rango tienen delta muy bajo y su GEX tiene menor impacto en el precio a corto plazo.`,
+            ]} />
           </div>
 
           <div className="bg-card border border-border p-6">
@@ -198,6 +217,13 @@ export default function Metodologia2({
                 <Line type="monotone" dataKey="pcr" stroke="#1565c0" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
+            <ChartSummary lines={[
+              "PCR (Put/Call Ratio) por strike = open interest en puts dividido entre open interest en calls. Un PCR > 1 indica que hay más puts que calls en ese strike — señal de cobertura bajista institucional.",
+              "PCR > 1.2 en strikes bajo el spot = institucionales comprando protección bajista → el soporte está bien respaldado por hedging. PCR < 0.8 en strikes bajo el spot = poca cobertura → soporte más frágil.",
+              "PCR > 1 en strikes sobre el spot es inusual. Puede indicar posicionamiento bajista anticipado o cobertura de posiciones largas. Este tipo de configuración refuerza la resistencia en esa zona.",
+              `La línea naranja en PCR=1 es el equilibrio neutro. Strikes con PCR alejados de 1 tienen posicionamiento institucional claro. En el soporte $${data.support.toFixed(2)} y la resistencia $${data.resistance.toFixed(2)}, el PCR confirma o contradice el GEX.`,
+              "Combina este gráfico con el de GEX: si un strike tiene GEX positivo Y PCR > 1, la convergencia de ambas señales hace al soporte mucho más robusto que cuando solo una de las dos métricas lo indica.",
+            ]} />
           </div>
 
           <div className="bg-card border border-border p-6">
@@ -225,6 +251,13 @@ export default function Metodologia2({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            <ChartSummary lines={[
+              "El Institutional Pressure Score combina Z(GEX) + Z(PCR) en una sola métrica estandarizada. Z-score normaliza ambas señales para que sean comparables entre sí. Un score alto positivo = confluencia de soporte institucional.",
+              "Score positivo (verde): GEX positivo Y PCR > 1 convergen. Los dealers tienen exposición gamma larga y además hay más puts que calls — doble señal de soporte institucional en ese strike.",
+              "Score negativo (rojo): GEX negativo Y/O PCR bajo convergen. Los dealers amplifican movimientos bajistas y hay escasa cobertura de puts — zona de debilidad estructural.",
+              `El soporte institucional ($${data.support.toFixed(2)}) es el strike con el mayor score positivo: máxima confluencia de GEX+ y PCR>1. La resistencia ($${data.resistance.toFixed(2)}) es el strike con el menor score (más negativo).`,
+              "Este modelo supera a mirar GEX o PCR por separado porque la normalización Z elimina el ruido de magnitud. Un strike con GEX moderado y PCR muy alto puede tener mayor score que uno con GEX enorme y PCR bajo.",
+            ]} />
           </div>
 
           {/* ── RESUMEN M2 ─────────────────────────────────────────────────────── */}
