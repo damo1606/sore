@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifyToken } from "@/lib/auth";
 
-const SESSION_COOKIE = "sore_session";
-const SESSION_TOKEN = process.env.SESSION_SECRET ?? "sore_secret_token";
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Permitir rutas de auth sin protección
@@ -11,14 +9,21 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = request.cookies.get(SESSION_COOKIE)?.value;
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
 
-  if (session !== SESSION_TOKEN) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+  if (!token) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  return NextResponse.next();
+  try {
+    await verifyToken(token);
+    return NextResponse.next();
+  } catch {
+    // Token inválido, expirado o firma incorrecta — limpiar cookie y redirigir
+    const response = NextResponse.redirect(new URL("/login", request.url));
+    response.cookies.set(SESSION_COOKIE, "", { maxAge: 0, path: "/" });
+    return response;
+  }
 }
 
 export const config = {

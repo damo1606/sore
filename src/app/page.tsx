@@ -7,8 +7,9 @@ import Metodologia3 from "@/components/Metodologia3";
 import Metodologia4 from "@/components/Metodologia4";
 import Metodologia5 from "@/components/Metodologia5";
 import Metodologia6 from "@/components/Metodologia6";
+import Metodologia7 from "@/components/Metodologia7";
 
-const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4", "METODOLOGÍA 5", "METODOLOGÍA 6"] as const;
+const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4", "METODOLOGÍA 5", "METODOLOGÍA 6", "METODOLOGÍA 7"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_DESCRIPTIONS: Record<Tab, string> = {
@@ -18,6 +19,7 @@ const TAB_DESCRIPTIONS: Record<Tab, string> = {
   "METODOLOGÍA 4": "MAPA DE CALOR S/R",
   "METODOLOGÍA 5": "SEÑAL CONSOLIDADA",
   "METODOLOGÍA 6": "RÉGIMEN DE MERCADO",
+  "METODOLOGÍA 7": "VEREDICTO FINAL · S/R INSTITUCIONAL · TIMING MULTI-MARCO",
 };
 
 const METHODOLOGY_INTROS: Record<Tab, { what: string; how: string; output: string }> = {
@@ -50,6 +52,11 @@ const METHODOLOGY_INTROS: Record<Tab, { what: string; how: string; output: strin
     what: "Régimen de mercado en tiempo real — determina si el entorno macro actual favorece o invalida los modelos de GEX antes de operar cualquier señal.",
     how: "Cuatro señales independientes: VIX nivel (35%), estructura de plazos VIX/VIX3M (25%), SPY GEX total (30%) y SPY PCR (10%). La velocidad del VIX (+% en 5 días) actúa como detector de pánico anticipado. En PÁNICO o CRISIS las señales de GEX se suspenden automáticamente.",
     output: "Régimen detectado (COMPRESIÓN / TRANSICIÓN / EXPANSIÓN / PÁNICO AGUDO / CRISIS SISTÉMICA), multiplicador sobre el score de M5, Brief Operativo con entrada · objetivo · stop · R/R ajustados por régimen.",
+  },
+  "METODOLOGÍA 7": {
+    what: "Veredicto final consolidado — agrega las seis metodologías en un único score (−100 a +100) ponderado por fiabilidad: M5 (35%), M6 (25%), M2 (20%), M3 (15%), M1 (5%).",
+    how: "Cada metodología aporta un score normalizado. El régimen de mercado (M6) actúa como multiplicador global: en COMPRESIÓN amplifica la señal (×1.2), en EXPANSIÓN la reduce (×0.7), en PÁNICO/CRISIS la suspende. Los niveles S/R de M1, M2, M3 y M5 se agrupan por proximidad (±0.5%) para identificar zonas de máxima confluencia institucional.",
+    output: "Score unificado y veredicto, tabla de S/R institucional con votos (0-4 metodologías), setups PRIMARY LONG y PRIMARY SHORT, matriz de timing a 4 marcos temporales (intraday / semanal / mensual / trimestral).",
   },
 };
 
@@ -368,6 +375,9 @@ export default function Home() {
       </div>
       <div className={activeTab === "METODOLOGÍA 6" ? "" : "hidden"}>
         <Metodologia6 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
+      </div>
+      <div className={activeTab === "METODOLOGÍA 7" ? "" : "hidden"}>
+        <Metodologia7 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
       </div>
     </div>
   );

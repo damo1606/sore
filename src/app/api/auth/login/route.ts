@@ -1,20 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { supabaseServer } from "@/lib/supabase";
+import { signToken, SESSION_COOKIE } from "@/lib/auth";
 
-const SESSION_COOKIE = "sore_session";
-const SESSION_TOKEN = process.env.SESSION_SECRET ?? "sore_secret_token";
+// Hash falso para la ruta de timing-attack prevention (cuando el usuario no existe)
+const DUMMY_HASH = "$2b$12$invalidhashfortimingprotectionXXXXXXXXXXXXXXXXXXXXXXX";
 
 export async function POST(request: NextRequest) {
   const { username, password } = await request.json();
 
-  const validUser = process.env.AUTH_USERNAME ?? "admin";
-  const validPass = process.env.AUTH_PASSWORD ?? "sore2024";
+  if (!username || !password) {
+    return NextResponse.json({ error: "Credenciales requeridas" }, { status: 400 });
+  }
 
-  if (username !== validUser || password !== validPass) {
+  const db = supabaseServer();
+  const { data: user, error } = await db
+    .from("users")
+    .select("id, username, password_hash")
+    .eq("username", username)
+    .single();
+
+  // Siempre ejecutar bcrypt aunque el usuario no exista (previene enumeración por tiempo)
+  const hashToCheck = user?.password_hash ?? DUMMY_HASH;
+  const valid = await bcrypt.compare(password, hashToCheck);
+
+  if (error || !user || !valid) {
     return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
   }
 
+  const token = await signToken({ sub: user.id, username: user.username });
+
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, SESSION_TOKEN, {
+  response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

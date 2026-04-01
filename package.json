@@ -8,20 +8,23 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.2",
+    "lightweight-charts": "^4.2.0",
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",
-    "recharts": "^2.12.7",
-    "lightweight-charts": "^4.2.0",
-    "@supabase/supabase-js": "^2.49.4"
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "tailwindcss": "^3.4.1",
+    "autoprefixer": "^10.0.1",
     "postcss": "^8",
-    "autoprefixer": "^10.0.1"
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }
