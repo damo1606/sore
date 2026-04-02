@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# MCP config (contains tokens)
+.mcp.json
+
 # Next.js
 .next/
 out/
