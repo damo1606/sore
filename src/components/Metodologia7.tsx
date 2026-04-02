@@ -223,7 +223,16 @@ function TimingCard({ block }: { block: TimingBlock }) {
   );
 }
 
+// ─── Date formatter for multi-date table ─────────────────────────────────────
+function formatMultiDate(d: string) {
+  const [y, m] = d.split("-");
+  const months = ["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"];
+  return `${months[parseInt(m, 10) - 1]} ${y.slice(2)}`;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
+type Data7 = Analysis7Result & { availableExpirations?: string[] };
+
 export default function Metodologia7({
   ticker,
   expiration,
@@ -235,9 +244,11 @@ export default function Metodologia7({
   analyzeKey: number;
   companyName?: string;
 }) {
-  const [data, setData] = useState<Analysis7Result | null>(null);
+  const [data, setData] = useState<Data7 | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [multiData, setMultiData] = useState<{ date: string; result: Analysis7Result }[]>([]);
+  const [multiLoading, setMultiLoading] = useState(false);
 
   const fetchAnalysis = useCallback(async (t: string, exp: string) => {
     setLoading(true);
@@ -257,8 +268,27 @@ export default function Metodologia7({
     }
   }, []);
 
+  const fetchMulti = useCallback(async (t: string, availableDates: string[]) => {
+    setMultiLoading(true);
+    const dates = availableDates.filter((_, i) => i % 2 === 0).slice(0, 6);
+    try {
+      const results = await Promise.all(
+        dates.map(async (date) => {
+          const res = await fetch(`/api/analysis7?ticker=${t}&upTo=${date}`);
+          const json = await res.json();
+          return { date, result: json as Analysis7Result };
+        })
+      );
+      setMultiData(results);
+    } catch { /* silencioso */ }
+    finally { setMultiLoading(false); }
+  }, []);
+
   useEffect(() => {
-    if (analyzeKey > 0 && ticker) fetchAnalysis(ticker, expiration);
+    if (analyzeKey > 0 && ticker) {
+      setMultiData([]);
+      fetchAnalysis(ticker, expiration);
+    }
   }, [analyzeKey]);
 
   // ── Error ──────────────────────────────────────────────────────────────────
@@ -495,6 +525,103 @@ export default function Metodologia7({
           RESUMEN FINAL — ANÁLISIS INSTITUCIONAL COMPLETO · {data.ticker} · ${data.spot.toFixed(2)}
         </p>
         <ChartSummary lines={data.summaryLines} />
+      </section>
+
+      {/* ── SECCIÓN 6: ANÁLISIS MULTI-EXPIRY ─────────────────────────────── */}
+      <section className="bg-card border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted tracking-widest">
+            ANÁLISIS MULTI-EXPIRY — SENSIBILIDAD POR HORIZONTE DE VENCIMIENTO
+          </p>
+          {multiData.length === 0 && !multiLoading && (
+            <button
+              onClick={() => fetchMulti(data.ticker, data.availableExpirations ?? [])}
+              className="text-xs border border-accent text-accent px-3 py-1 hover:bg-accent/10 transition-colors"
+            >
+              CARGAR MULTIFECHAS
+            </button>
+          )}
+        </div>
+
+        {multiLoading && (
+          <div className="flex items-center gap-3 py-4 text-muted">
+            <div className="w-5 h-5 border-2 border-accent border-t-transparent animate-spin rounded-full" />
+            <span className="text-xs">Calculando {(data.availableExpirations ?? []).filter((_, i) => i % 2 === 0).slice(0, 6).length} cortes de expiración...</span>
+          </div>
+        )}
+
+        {multiData.length > 0 && (
+          <>
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted">
+                    <th className="text-left py-2 px-3">CORTE</th>
+                    <th className="text-right py-2 px-3">SCORE</th>
+                    <th className="text-left py-2 px-3 w-32">BARRA</th>
+                    <th className="text-left py-2 px-3">VEREDICTO</th>
+                    <th className="text-right py-2 px-3">CONF</th>
+                    <th className="text-right py-2 px-3">SUP</th>
+                    <th className="text-right py-2 px-3">RES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {multiData.map(({ date, result: r }) => (
+                    <tr key={date} className="border-b border-border hover:bg-surface/50 transition-colors">
+                      <td className="py-2 px-3 font-mono font-bold text-foreground">{formatMultiDate(date)}</td>
+                      <td className={`py-2 px-3 text-right font-mono font-bold ${r.finalScore >= 0 ? "text-accent" : "text-danger"}`}>
+                        {r.finalScore > 0 ? "+" : ""}{r.finalScore}
+                      </td>
+                      <td className="py-2 px-3">
+                        <ScoreBar score={r.finalScore} />
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`font-bold text-xs ${verdictColor(r.finalVerdict)}`}>{r.finalVerdict}</span>
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-muted">{r.confidence}%</td>
+                      <td className="py-2 px-3 text-right font-mono text-accent">
+                        {r.primaryLong ? `$${r.primaryLong.strike.toFixed(0)}` : "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-danger">
+                        {r.primaryShort ? `$${r.primaryShort.strike.toFixed(0)}` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="sm:hidden space-y-2">
+              {multiData.map(({ date, result: r }) => (
+                <div key={date} className="border border-border p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-xs text-foreground">{formatMultiDate(date)}</span>
+                    <span className={`font-bold text-xs ${verdictColor(r.finalVerdict)}`}>{r.finalVerdict}</span>
+                  </div>
+                  <ScoreBar score={r.finalScore} />
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted">SCORE</p>
+                      <p className={`font-mono font-bold ${r.finalScore >= 0 ? "text-accent" : "text-danger"}`}>
+                        {r.finalScore > 0 ? "+" : ""}{r.finalScore}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted">SUP</p>
+                      <p className="font-mono text-accent">{r.primaryLong ? `$${r.primaryLong.strike.toFixed(0)}` : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted">RES</p>
+                      <p className="font-mono text-danger">{r.primaryShort ? `$${r.primaryShort.strike.toFixed(0)}` : "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
     </main>
