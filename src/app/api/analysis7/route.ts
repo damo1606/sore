@@ -5,6 +5,7 @@ import { computeAnalysis3 } from "@/lib/gex3";
 import { computeAnalysis5, compute25dSkew, type ExpData5 } from "@/lib/gex5";
 import { computeSpyMetrics, computeRegime }                from "@/lib/gex6";
 import { computeAnalysis7 }                                from "@/lib/gex7";
+import { supabaseServer }                                  from "@/lib/supabase";
 
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -80,6 +81,16 @@ export async function GET(request: NextRequest) {
   if (!ticker) return NextResponse.json({ error: "ticker is required" }, { status: 400 });
 
   try {
+    // Lanzar query histórica en paralelo con Yahoo Finance — no bloquea
+    const snapshotsPromise = supabaseServer()
+      .from("sr_snapshots")
+      .select("m1_support,m1_resistance,m2_support,m2_resistance,m3_support,m3_resistance,m5_support_strike,m5_resistance_strike")
+      .eq("ticker", ticker)
+      .order("created_at", { ascending: false })
+      .limit(7)
+      .then((r) => r.data ?? [])
+      .catch(() => [] as Record<string, number | null>[]);
+
     const { crumb, cookie } = await getCredentials();
 
     // Fetch ticker options + M6 data in parallel
@@ -193,7 +204,60 @@ export async function GET(request: NextRequest) {
     // ── M7 ────────────────────────────────────────────────────────────────────
     const result = computeAnalysis7(ticker, spot, m1, m2Result, m3Result, m5, m6);
 
-    return NextResponse.json({ ...result, availableExpirations });
+    // ── Confirmación histórica ────────────────────────────────────────────────
+    const snapshots = await snapshotsPromise;
+    const PROX_PCT = 0.005; // ±0.5%
+    const enrichedSrTable = result.srTable.map((cluster) => {
+      const historicalDays = snapshots.filter((snap) => {
+        const levels = [
+          snap.m1_support, snap.m1_resistance,
+          snap.m2_support, snap.m2_resistance,
+          snap.m3_support, snap.m3_resistance,
+          snap.m5_support_strike, snap.m5_resistance_strike,
+        ].filter((v): v is number => v != null);
+        return levels.some((lvl) => Math.abs(lvl - cluster.strike) / cluster.strike <= PROX_PCT);
+      }).length;
+      return { ...cluster, historicalDays };
+    });
+
+    // ── Guardar snapshot (fire-and-forget) ────────────────────────────────────
+    supabaseServer()
+      .from("sr_snapshots")
+      .insert({
+        ticker,
+        spot,
+        primary_exp_date:          primaryExpDate.date,
+        m1_support:                m1.levels.support,
+        m1_resistance:             m1.levels.resistance,
+        m1_call_wall:              m1.levels.callWall,
+        m1_put_wall:               m1.levels.putWall,
+        m1_gamma_flip:             m1.levels.gammaFlip,
+        m1_net_gex:                m1.netGex,
+        m1_put_call_ratio:         m1.putCallRatio,
+        m2_support:                m2Result.support,
+        m2_resistance:             m2Result.resistance,
+        m3_support:                m3Result.support,
+        m3_resistance:             m3Result.resistance,
+        m3_support_confidence:     m3?.supportConfidence    ?? null,
+        m3_resistance_confidence:  m3?.resistanceConfidence ?? null,
+        m5_support_strike:         m5.support?.strike       ?? null,
+        m5_resistance_strike:      m5.resistance?.strike    ?? null,
+        m5_support_confidence:     m5.support?.confidence   ?? null,
+        m5_resistance_confidence:  m5.resistance?.confidence ?? null,
+        m5_score:                  m5.score,
+        m5_verdict:                m5.verdict,
+        m7_final_score:            result.finalScore,
+        m7_final_verdict:          result.finalVerdict,
+        m7_confidence:             result.confidence,
+        m7_regime:                 result.m6Regime,
+        m7_regime_multiplier:      result.regimeMultiplier,
+        m7_sr_table:               result.srTable,
+        m7_timing_matrix:          result.timingMatrix,
+      })
+      .then(() => {})
+      .catch(() => {});
+
+    return NextResponse.json({ ...result, srTable: enrichedSrTable, availableExpirations });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "Unknown error" }, { status: 500 });
   }

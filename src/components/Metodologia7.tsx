@@ -173,6 +173,14 @@ function PrimarySetupCard({
           <CalifBar value={cluster.calificacion} />
         </div>
         <p className="text-xs text-muted">Fuentes: {cluster.sources.join(" · ")}</p>
+          {cluster.historicalDays != null && (
+            <p className="text-xs text-muted mt-0.5">
+              Confirmado{" "}
+              <span className={cluster.historicalDays >= 5 ? "text-accent font-bold" : cluster.historicalDays >= 3 ? "text-warning font-bold" : "text-muted"}>
+                {cluster.historicalDays}/7 días
+              </span>
+            </p>
+          )}
       </div>
     </div>
   );
@@ -219,6 +227,159 @@ function TimingCard({ block }: { block: TimingBlock }) {
         <span className="text-muted">R/R {block.rrRatio ?? "—"} · Convicción {block.conviction}%</span>
       </div>
       <p className="text-xs text-muted opacity-70">{block.condition}</p>
+    </div>
+  );
+}
+
+// ─── SR Price Ladder Chart ────────────────────────────────────────────────────
+function SRPriceLadder({
+  srTable,
+  spot,
+  timingMatrix,
+}: {
+  srTable: SRCluster[];
+  spot: number;
+  timingMatrix: TimingBlock[];
+}) {
+  const monthly = timingMatrix.find((b) => b.timeframe === "MENSUAL");
+
+  const allPrices: number[] = [spot, ...srTable.map((c) => c.strike)];
+  if (monthly?.entry)  allPrices.push(monthly.entry);
+  if (monthly?.target) allPrices.push(monthly.target);
+  if (monthly?.stop)   allPrices.push(monthly.stop);
+
+  const rawMin = Math.min(...allPrices);
+  const rawMax = Math.max(...allPrices);
+  const pad    = (rawMax - rawMin) * 0.08;
+  const minP   = rawMin - pad;
+  const maxP   = rawMax + pad;
+  const range  = maxP - minP;
+
+  const W = 600; const H = 400;
+  const CL = 76;  // chart left (after labels)
+  const CR = 520; // chart right (before right labels)
+  const CT = 12;  // chart top
+  const CB = 388; // chart bottom
+
+  const py = (price: number) => CT + ((maxP - price) / range) * (CB - CT);
+  const fmt = (p: number) => `$${p.toFixed(p >= 100 ? 0 : 2)}`;
+
+  // Zone between monthly entry and target
+  const zoneY1 = monthly?.entry  ? py(monthly.entry)  : null;
+  const zoneY2 = monthly?.target ? py(monthly.target) : null;
+
+  const lineProps = (y: number, color: string, dash?: string, width = 1.5) => ({
+    x1: CL, y1: y, x2: CR, y2: y,
+    stroke: color, strokeWidth: width,
+    ...(dash ? { strokeDasharray: dash } : {}),
+  });
+
+  return (
+    <div className="w-full">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        style={{ maxHeight: 420 }}
+        aria-label="Mapa de precios S/R mensual"
+      >
+        {/* Monthly zone */}
+        {zoneY1 != null && zoneY2 != null && (
+          <rect
+            x={CL} width={CR - CL}
+            y={Math.min(zoneY1, zoneY2)}
+            height={Math.abs(zoneY2 - zoneY1)}
+            fill={monthly?.signal === "ALCISTA" ? "rgba(34,197,94,0.07)" : "rgba(239,68,68,0.07)"}
+          />
+        )}
+
+        {/* S/R level lines */}
+        {srTable.map((cl, i) => {
+          const y        = py(cl.strike);
+          const isSupp   = cl.type === "support";
+          const color    = isSupp ? "#22c55e" : "#ef4444";
+          const opacity  = 0.35 + (cl.calificacion / 100) * 0.65;
+          const sw       = 1 + (cl.votes - 1) * 0.7;
+          const dash     = cl.votes <= 1 ? "5,3" : undefined;
+          return (
+            <g key={i} opacity={opacity}>
+              <line {...lineProps(y, color, dash, sw)} />
+              {/* Left: strike price */}
+              <text x={CL - 5} y={y + 4} textAnchor="end" fontSize={10} fill={color} fontFamily="monospace">
+                {fmt(cl.strike)}
+              </text>
+              {/* Right: dist% + votos */}
+              <text x={CR + 5} y={y + 4} textAnchor="start" fontSize={9} fill={color} fontFamily="monospace">
+                {cl.distPct > 0 ? "+" : ""}{cl.distPct.toFixed(1)}% · {cl.votes}/4
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Monthly stop */}
+        {monthly?.stop != null && monthly.stop > 0 && (() => {
+          const y = py(monthly.stop);
+          return (
+            <g>
+              <line {...lineProps(y, "#ef4444", "7,3")} />
+              <text x={CL - 5} y={y + 4} textAnchor="end" fontSize={10} fill="#ef4444" fontFamily="monospace">{fmt(monthly.stop)}</text>
+              <text x={CR + 5} y={y + 4} textAnchor="start" fontSize={9} fill="#ef4444">STOP</text>
+            </g>
+          );
+        })()}
+
+        {/* Monthly entry */}
+        {monthly?.entry != null && monthly.entry > 0 && (() => {
+          const y = py(monthly.entry);
+          return (
+            <g>
+              <line {...lineProps(y, "#f59e0b", "7,3")} />
+              <text x={CL - 5} y={y + 4} textAnchor="end" fontSize={10} fill="#f59e0b" fontFamily="monospace">{fmt(monthly.entry)}</text>
+              <text x={CR + 5} y={y + 4} textAnchor="start" fontSize={9} fill="#f59e0b">ENTRY</text>
+            </g>
+          );
+        })()}
+
+        {/* Monthly target */}
+        {monthly?.target != null && monthly.target > 0 && (() => {
+          const y = py(monthly.target);
+          return (
+            <g>
+              <line {...lineProps(y, "#4ade80", "7,3")} />
+              <text x={CL - 5} y={y + 4} textAnchor="end" fontSize={10} fill="#4ade80" fontFamily="monospace">{fmt(monthly.target)}</text>
+              <text x={CR + 5} y={y + 4} textAnchor="start" fontSize={9} fill="#4ade80">TARGET</text>
+            </g>
+          );
+        })()}
+
+        {/* Spot line — drawn last so it's on top */}
+        {(() => {
+          const y = py(spot);
+          return (
+            <g>
+              <line {...lineProps(y, "#ffffff", undefined, 2)} opacity={0.9} />
+              <text x={CL - 5} y={y - 5} textAnchor="end" fontSize={10} fill="#ffffff" fontWeight="bold" fontFamily="monospace">
+                {fmt(spot)}
+              </text>
+              <text x={CR + 5} y={y - 5} textAnchor="start" fontSize={9} fill="#9ca3af">SPOT</text>
+            </g>
+          );
+        })()}
+
+        {/* Legend */}
+        {[
+          { color: "#22c55e", label: "SOPORTE",   x: CL },
+          { color: "#ef4444", label: "RESIST.",   x: CL + 90 },
+          { color: "#ffffff", label: "SPOT",      x: CL + 170 },
+          { color: "#f59e0b", label: "ENTRY MES", x: CL + 220 },
+          { color: "#4ade80", label: "TARGET MES",x: CL + 320 },
+          { color: "#ef4444", label: "STOP MES",  x: CL + 430 },
+        ].map(({ color, label, x }) => (
+          <g key={label}>
+            <rect x={x} y={H - 18} width={14} height={3} fill={color} rx={1} />
+            <text x={x + 18} y={H - 12} fontSize={9} fill="#6b7280" fontFamily="sans-serif">{label}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
@@ -433,6 +594,7 @@ export default function Metodologia7({
                   <th className="text-right py-2 px-3">DIST%</th>
                   <th className="text-right py-2 px-3">PROB</th>
                   <th className="text-right py-2 px-3">VOTOS</th>
+                  <th className="text-right py-2 px-3">HIST</th>
                   <th className="text-right py-2 px-3">GEX</th>
                   <th className="text-left py-2 px-3">CALIFICACIÓN</th>
                   <th className="text-left py-2 px-3">FUENTES</th>
@@ -460,6 +622,16 @@ export default function Metodologia7({
                       </td>
                       <td className="py-2 px-3 text-right font-mono">{cluster.probability}%</td>
                       <td className="py-2 px-3 text-right font-mono">{cluster.votes}/4</td>
+                      <td className="py-2 px-3 text-right font-mono">
+                        {cluster.historicalDays != null ? (
+                          <span className={
+                            cluster.historicalDays >= 5 ? "text-accent font-bold" :
+                            cluster.historicalDays >= 3 ? "text-warning" : "text-muted"
+                          }>
+                            {cluster.historicalDays}/7
+                          </span>
+                        ) : <span className="text-muted">—</span>}
+                      </td>
                       <td className="py-2 px-3 text-right font-mono text-muted">{(cluster.gexWeight * 100).toFixed(0)}%</td>
                       <td className="py-2 px-3"><CalifBar value={cluster.calificacion} /></td>
                       <td className="py-2 px-3 text-muted">{cluster.sources.join(" · ")}</td>
@@ -471,6 +643,34 @@ export default function Metodologia7({
           </div>
         )}
       </section>
+
+      {/* ── SECCIÓN 3.5: MAPA DE PRECIOS S/R MENSUAL ─────────────────────── */}
+      {data.srTable.length > 0 && (
+        <section className="bg-card border border-border p-6">
+          <p className="text-xs text-muted tracking-widest mb-4">
+            MAPA DE PRECIOS — S/R INSTITUCIONAL · OBJETIVO MENSUAL
+          </p>
+          <SRPriceLadder
+            srTable={data.srTable}
+            spot={data.spot}
+            timingMatrix={data.timingMatrix}
+          />
+          {(() => {
+            const m = data.timingMatrix.find((b) => b.timeframe === "MENSUAL");
+            if (!m || m.signal === "NO OPERAR") return null;
+            return (
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted border-t border-border pt-3">
+                <span>MARCO MENSUAL · <span className={m.signal === "ALCISTA" ? "text-accent font-bold" : "text-danger font-bold"}>{m.signal}</span></span>
+                {m.entry  && <span>ENTRY <span className="font-mono text-warning">${m.entry.toFixed(2)}</span></span>}
+                {m.target && <span>TARGET <span className="font-mono text-accent">${m.target.toFixed(2)}</span></span>}
+                {m.stop   && <span>STOP <span className="font-mono text-danger">${m.stop.toFixed(2)}</span></span>}
+                {m.rrRatio && <span>R/R <span className="font-mono text-foreground">{m.rrRatio}</span></span>}
+                <span>CONVICTION <span className="font-mono">{m.conviction}%</span></span>
+              </div>
+            );
+          })()}
+        </section>
+      )}
 
       {/* ── SECCIÓN 4: TIMING MATRIX ─────────────────────────────────────── */}
       <section className="bg-card border border-border p-6">

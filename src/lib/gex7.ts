@@ -28,6 +28,7 @@ export interface SRCluster {
   targetPrice: number | null;
   stopPrice: number;
   rrRatio: number | null;
+  historicalDays?: number;  // 0-7: cuántos snapshots recientes confirmaron este nivel (±0.5%)
 }
 
 export interface TimingBlock {
