@@ -155,6 +155,96 @@ function ETFCard({ etf }: { etf: ETFResult }) {
   );
 }
 
+// ─── Heatmap 12 celdas ───────────────────────────────────────────────────────
+function RotationHeatmap({ etfs }: { etfs: ETFResult[] }) {
+  // Ordenar por posición geográfica de sector (de más growth a más refugio)
+  const ORDER = ["QQQ","XLK","XLC","XLY","XLI","XLF","XLE","SPY","XLV","XLP","GLD","TLT"];
+  const sorted = ORDER.map((t) => etfs.find((e) => e.ticker === t)).filter(Boolean) as ETFResult[];
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[9px] text-muted tracking-widest font-bold">MAPA DE CALOR · PRESIÓN INSTITUCIONAL POR SECTOR</p>
+      <div className="grid grid-cols-6 sm:grid-cols-12 gap-1">
+        {sorted.map((etf) => {
+          const p    = etf.institutionalPressure;
+          const abs  = Math.min(Math.abs(p) / 100, 1);
+          const bg   = p > 0
+            ? `rgba(34,197,94,${0.12 + abs * 0.78})`
+            : `rgba(239,68,68,${0.12 + abs * 0.78})`;
+          const textColor = abs > 0.45 ? "#fff" : p > 0 ? "#16a34a" : "#dc2626";
+          return (
+            <div
+              key={etf.ticker}
+              style={{ backgroundColor: bg }}
+              className="flex flex-col items-center justify-center py-3 px-1 rounded gap-0.5 border border-white/5"
+              title={`${etf.ticker} · ${etf.label} · ${p > 0 ? "+" : ""}${Math.round(p)}`}
+            >
+              <span className="text-[10px] font-black tracking-widest" style={{ color: textColor }}>
+                {etf.ticker}
+              </span>
+              <span className="text-[9px] font-mono" style={{ color: textColor }}>
+                {p > 0 ? "+" : ""}{Math.round(p)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between text-[9px] text-muted mt-1">
+        <span>← GROWTH / TECH</span>
+        <span>REFUGIO →</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Resumen en bullets ───────────────────────────────────────────────────────
+function buildSummaryLines(etfs: ETFResult[], signal: { signal: string }): string[] {
+  const sorted     = [...etfs].filter((e) => !e.error).sort((a, b) => b.institutionalPressure - a.institutionalPressure);
+  const top        = sorted[0];
+  const bottom     = sorted[sorted.length - 1];
+  const alcistas   = sorted.filter((e) => e.verdict === "ALCISTA");
+  const bajistas   = sorted.filter((e) => e.verdict === "BAJISTA");
+  const growthAvg  = avg(etfs, ["XLK","XLY","XLC","QQQ"]);
+  const altAvg     = avg(etfs, ["GLD","TLT"]);
+  const spread     = growthAvg - altAvg;
+
+  const lines: string[] = [];
+
+  // 1. Señal dominante
+  lines.push(`Señal dominante: ${signal.signal}. ${alcistas.length} sectores con flujo alcista, ${bajistas.length} con flujo bajista.`);
+
+  // 2. Sector líder
+  if (top) lines.push(`Mayor presión institucional: ${top.ticker} (${top.label}) con score ${top.institutionalPressure > 0 ? "+" : ""}${Math.round(top.institutionalPressure)}. ${top.verdict === "ALCISTA" ? "Dealers acumulando gamma positiva — soporte mecánico activo." : "Gamma negativa dominante — dealers en modo vendedor."}`);
+
+  // 3. Sector más débil
+  if (bottom) lines.push(`Mayor presión bajista: ${bottom.ticker} (${bottom.label}) con score ${Math.round(bottom.institutionalPressure)}. ${bottom.putCallRatio > 1.2 ? `PCR ${bottom.putCallRatio.toFixed(2)} — cobertura institucional elevada.` : "Sin señal de cobertura significativa aún."}`);
+
+  // 4. Divergencia growth vs refugio
+  if (Math.abs(spread) > 20)
+    lines.push(`Divergencia growth/refugio: ${spread > 0 ? `+${spread.toFixed(0)} puntos a favor del growth (XLK/QQQ vs GLD/TLT). Entorno de apetito por riesgo.` : `${spread.toFixed(0)} puntos a favor de los refugios (GLD/TLT vs XLK/QQQ). El mercado se posiciona defensivamente.`}`);
+  else
+    lines.push(`Divergencia growth/refugio contenida (${spread.toFixed(0)} pts). No hay rotación clara entre activos de riesgo y refugios.`);
+
+  // 5. PCR del mercado
+  const spyEtf = etfs.find((e) => e.ticker === "SPY");
+  if (spyEtf && !spyEtf.error)
+    lines.push(`SPY PCR ${spyEtf.putCallRatio.toFixed(2)} — ${spyEtf.putCallRatio > 1.3 ? "cobertura bajista elevada, posible suelo técnico cercano." : spyEtf.putCallRatio < 0.8 ? "complacencia alcista, escasa cobertura institucional." : "equilibrio entre calls y puts, sin señal extrema."}`);
+
+  return lines;
+}
+
+function SummaryLines({ lines }: { lines: string[] }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 pt-4 border-t border-border">
+      {lines.map((line, i) => (
+        <div key={i} className="text-xs text-muted leading-relaxed px-2 border-l-2 border-border">
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Group heatmap bar ────────────────────────────────────────────────────────
 function GroupBar({ label, etfs, tickers }: { label: string; etfs: ETFResult[]; tickers: string[] }) {
   const score = avg(etfs, tickers);
@@ -334,6 +424,12 @@ export default function RotacionPage() {
               </div>
             </section>
           )}
+
+          {/* Heatmap */}
+          <section className="bg-card border border-border p-6">
+            <RotationHeatmap etfs={data.etfs} />
+            <SummaryLines lines={buildSummaryLines(data.etfs, rotationSignal!)} />
+          </section>
 
           {/* Group filter */}
           <div className="flex items-center gap-2">
