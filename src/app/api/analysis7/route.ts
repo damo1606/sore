@@ -82,14 +82,14 @@ export async function GET(request: NextRequest) {
 
   try {
     // Lanzar query histórica en paralelo con Yahoo Finance — no bloquea
-    const snapshotsPromise = supabaseServer()
-      .from("sr_snapshots")
-      .select("m1_support,m1_resistance,m2_support,m2_resistance,m3_support,m3_resistance,m5_support_strike,m5_resistance_strike")
-      .eq("ticker", ticker)
-      .order("created_at", { ascending: false })
-      .limit(7)
-      .then((r) => r.data ?? [])
-      .catch(() => [] as Record<string, number | null>[]);
+    const snapshotsPromise = Promise.resolve(
+      supabaseServer()
+        .from("sr_snapshots")
+        .select("m1_support,m1_resistance,m2_support,m2_resistance,m3_support,m3_resistance,m5_support_strike,m5_resistance_strike")
+        .eq("ticker", ticker)
+        .order("created_at", { ascending: false })
+        .limit(7)
+    ).then((r) => r.data ?? []).catch(() => [] as Record<string, number | null>[]);
 
     const { crumb, cookie } = await getCredentials();
 
