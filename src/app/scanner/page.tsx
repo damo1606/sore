@@ -174,6 +174,9 @@ export default function ScannerPage() {
           <span className="text-xs text-accent border border-accent px-3 py-1 tracking-widest font-bold">
             SCANNER
           </span>
+          <a href="/rotacion" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
+            ROTACIÓN
+          </a>
         </div>
         <button
           onClick={async () => {

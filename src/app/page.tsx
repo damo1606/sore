@@ -188,6 +188,9 @@ export default function Home() {
           <a href="/portafolio" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
             PORTAFOLIO
           </a>
+          <a href="/rotacion" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
+            ROTACIÓN
+          </a>
         </div>
         <div className="flex items-center gap-2">
           <button

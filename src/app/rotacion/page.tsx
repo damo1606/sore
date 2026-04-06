@@ -1,0 +1,371 @@
+"use client";
+
+import { useState, useCallback } from "react";
+
+type Group = "broad" | "sector" | "alternative";
+type Verdict = "ALCISTA" | "BAJISTA" | "NEUTRAL";
+
+interface ETFResult {
+  ticker: string;
+  label: string;
+  group: Group;
+  spot: number;
+  netGex: number;
+  institutionalPressure: number;
+  putCallRatio: number;
+  gammaFlip: number;
+  support: number;
+  resistance: number;
+  verdict: Verdict;
+  error?: string;
+}
+
+interface RotationData {
+  etfs: ETFResult[];
+  timestamp: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function avg(etfs: ETFResult[], tickers: string[]): number {
+  const subset = etfs.filter((e) => tickers.includes(e.ticker) && !e.error);
+  if (subset.length === 0) return 0;
+  return subset.reduce((s, e) => s + e.institutionalPressure, 0) / subset.length;
+}
+
+function computeRotationSignal(etfs: ETFResult[]): {
+  signal: string;
+  color: string;
+  description: string;
+} {
+  const growthScore   = avg(etfs, ["XLK", "XLY", "XLC", "QQQ"]);
+  const defensiveScore= avg(etfs, ["XLP", "XLV"]);
+  const altScore      = avg(etfs, ["GLD", "TLT"]);
+  const energyScore   = avg(etfs, ["XLE"]);
+  const finScore      = avg(etfs, ["XLF"]);
+
+  if (growthScore > 20 && altScore < -5)
+    return { signal: "RISK-ON · GROWTH", color: "text-accent", description: "Flujo institucional concentrado en tecnología y consumo discrecional. Capital saliendo de refugios." };
+  if (altScore > 20 && growthScore < -5)
+    return { signal: "RISK-OFF · REFUGIO", color: "text-danger", description: "Capital migrando a bonos y oro. Tecnología y consumo discrecional bajo presión vendedora institucional." };
+  if ((energyScore > 20 || finScore > 20) && growthScore < -5)
+    return { signal: "ROTACIÓN VALUE", color: "text-warning", description: "Salida de growth/tech hacia energía o finanzas. Típico de entornos de tipos altos o reflación." };
+  if (defensiveScore > 20 && growthScore < 0)
+    return { signal: "DEFENSIVO · CAUTELA", color: "text-warning", description: "Flujo hacia sectores defensivos (salud, consumo básico). El mercado anticipa desaceleración." };
+  return { signal: "MIXTO · SIN TENDENCIA CLARA", color: "text-muted", description: "Flujo institucional disperso entre sectores. Sin señal de rotación dominante." };
+}
+
+function verdictColor(v: Verdict) {
+  return v === "ALCISTA" ? "text-accent" : v === "BAJISTA" ? "text-danger" : "text-muted";
+}
+function verdictBorder(v: Verdict) {
+  return v === "ALCISTA" ? "border-accent" : v === "BAJISTA" ? "border-danger" : "border-border";
+}
+
+// ─── ScoreBar ─────────────────────────────────────────────────────────────────
+function ScoreBar({ score }: { score: number }) {
+  const pct = Math.abs(score) / 2;
+  const isPos = score >= 0;
+  return (
+    <div className="w-full h-2 bg-surface rounded-full relative overflow-hidden">
+      <div className="absolute inset-0 flex items-center">
+        <div className="w-px h-full bg-border mx-auto" style={{ marginLeft: "50%" }} />
+      </div>
+      <div
+        className={`absolute top-0 h-full rounded-full ${isPos ? "bg-accent left-1/2" : "bg-danger right-1/2"}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+// ─── ETF Card ─────────────────────────────────────────────────────────────────
+function ETFCard({ etf }: { etf: ETFResult }) {
+  const vc = verdictColor(etf.verdict);
+  const vb = verdictBorder(etf.verdict);
+  const fmt = (n: number) => n > 0 ? `$${n.toFixed(n >= 100 ? 0 : 2)}` : "—";
+
+  if (etf.error) {
+    return (
+      <div className="bg-card border border-border border-t-4 border-t-border p-4 space-y-2 opacity-50">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-bold text-accent tracking-widest">{etf.ticker}</span>
+          <span className="text-[9px] text-muted tracking-widest">{etf.label}</span>
+        </div>
+        <p className="text-xs text-danger">Error: {etf.error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`bg-card border border-border border-t-4 ${vb} p-4 space-y-3`}>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold text-accent tracking-widest">{etf.ticker}</span>
+        <span className="text-[9px] text-muted tracking-widest uppercase">{etf.label}</span>
+      </div>
+
+      {/* Verdict + Score */}
+      <div className="flex items-end justify-between">
+        <span className={`text-lg font-black ${vc}`}>{etf.verdict}</span>
+        <span className={`text-2xl font-black font-mono ${vc}`}>
+          {etf.institutionalPressure > 0 ? "+" : ""}{Math.round(etf.institutionalPressure)}
+        </span>
+      </div>
+
+      {/* Score bar */}
+      <ScoreBar score={etf.institutionalPressure} />
+
+      {/* Metrics */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        <div>
+          <p className="text-muted">SPOT</p>
+          <p className="font-mono text-foreground">${etf.spot.toFixed(2)}</p>
+        </div>
+        <div>
+          <p className="text-muted">PCR</p>
+          <p className={`font-mono ${etf.putCallRatio > 1.2 ? "text-danger" : etf.putCallRatio < 0.8 ? "text-accent" : "text-foreground"}`}>
+            {etf.putCallRatio.toFixed(2)}
+          </p>
+        </div>
+        <div>
+          <p className="text-muted">SOPORTE</p>
+          <p className="font-mono text-accent">{fmt(etf.support)}</p>
+        </div>
+        <div>
+          <p className="text-muted">RESIST.</p>
+          <p className="font-mono text-danger">{fmt(etf.resistance)}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-muted">GAMMA FLIP</p>
+          <p className="font-mono text-warning">{fmt(etf.gammaFlip)}</p>
+        </div>
+      </div>
+
+      {/* GEX direction */}
+      <div className="flex items-center gap-1.5 text-[10px] text-muted border-t border-border pt-2">
+        <span>GEX</span>
+        <span className={`font-mono font-bold ${etf.netGex >= 0 ? "text-accent" : "text-danger"}`}>
+          {etf.netGex >= 0 ? "POSITIVO" : "NEGATIVO"}
+        </span>
+        <span className="ml-auto opacity-60">
+          {etf.netGex >= 0 ? "Dealers compran → soporte" : "Dealers venden → expansión"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Group heatmap bar ────────────────────────────────────────────────────────
+function GroupBar({ label, etfs, tickers }: { label: string; etfs: ETFResult[]; tickers: string[] }) {
+  const score = avg(etfs, tickers);
+  const pct   = Math.abs(score) / 2;
+  const isPos = score >= 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted tracking-widest">{label}</span>
+        <span className={`font-mono font-bold ${isPos ? "text-accent" : "text-danger"}`}>
+          {score > 0 ? "+" : ""}{score.toFixed(0)}
+        </span>
+      </div>
+      <div className="w-full h-3 bg-surface rounded-full relative overflow-hidden">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-px h-full bg-border" style={{ marginLeft: "50%" }} />
+        </div>
+        <div
+          className={`absolute top-0 h-full rounded-full ${isPos ? "bg-accent left-1/2" : "bg-danger right-1/2"}`}
+          style={{ width: `${pct}%`, opacity: 0.7 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+const GROUP_LABELS: Record<Group, string> = {
+  broad:       "AMPLIOS",
+  sector:      "SECTORES",
+  alternative: "ALTERNATIVOS",
+};
+
+type GroupFilter = "all" | Group;
+
+export default function RotacionPage() {
+  const [data, setData] = useState<RotationData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
+
+  const handleScan = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res  = await fetch("/api/rotation");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Error al obtener datos");
+      setData(json);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  }, []);
+
+  const rotationSignal = data ? computeRotationSignal(data.etfs) : null;
+
+  const visibleEtfs = data
+    ? groupFilter === "all"
+      ? data.etfs
+      : data.etfs.filter((e) => e.group === groupFilter)
+    : [];
+
+  return (
+    <div className="min-h-screen bg-bg text-text">
+
+      {/* Header */}
+      <header className="border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between bg-bg sticky top-0 z-50 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="text-accent font-bold text-xl sm:text-2xl tracking-[0.3em]">SORE</span>
+          <a href="/" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
+            INSTITUTIONAL OPTIONS FLOW
+          </a>
+          <a href="/scanner" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
+            SCANNER
+          </a>
+          <span className="text-xs text-accent border border-accent px-3 py-1 tracking-widest font-bold hidden sm:block">
+            ROTACIÓN
+          </span>
+        </div>
+        <button
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+          className="text-xs text-white tracking-widest bg-red-600 hover:bg-red-700 transition-colors px-3 py-1 font-bold"
+        >
+          CERRAR SESIÓN
+        </button>
+      </header>
+
+      {/* Intro */}
+      <div className="bg-surface border-b border-border px-4 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <div className="text-[9px] text-muted tracking-widest font-bold mb-1">QUÉ DETECTA</div>
+          <div className="text-xs text-subtle leading-relaxed">Flujo institucional de opciones en 12 ETFs sectoriales. Identifica hacia qué sectores está migrando el capital.</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-muted tracking-widest font-bold mb-1">CÓMO FUNCIONA</div>
+          <div className="text-xs text-subtle leading-relaxed">Corre el modelo GEX (M1) en paralelo sobre SPY, QQQ y 10 sector ETFs. Compara la presión institucional entre grupos para detectar rotación.</div>
+        </div>
+        <div>
+          <div className="text-[9px] text-muted tracking-widest font-bold mb-1">SEÑAL DE ROTACIÓN</div>
+          <div className="text-xs text-subtle leading-relaxed">RISK-ON: flujo en XLK/XLY/QQQ. RISK-OFF: flujo en GLD/TLT. VALUE: flujo en XLE/XLF con XLK bajista.</div>
+        </div>
+      </div>
+
+      {/* Scan button */}
+      <div className="border-b border-border px-4 sm:px-6 py-3 bg-bg flex items-center justify-between">
+        <div className="text-xs text-muted tracking-widest">
+          12 ETFs sectoriales · SPY · QQQ · XLK · XLE · XLF · XLV · XLI · XLY · XLP · XLC · GLD · TLT
+        </div>
+        <button
+          onClick={handleScan}
+          disabled={loading}
+          className="bg-accent text-white px-6 py-2 text-sm font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
+        >
+          {loading ? "ANALIZANDO..." : "ESCANEAR ROTACIÓN"}
+        </button>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mx-4 sm:mx-6 mt-4 border border-danger text-danger text-sm p-3">{error}</div>
+      )}
+
+      {/* Empty state */}
+      {!data && !loading && !error && (
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-muted">
+          <p className="text-base tracking-widest font-bold">ROTACIÓN DE CAPITAL INSTITUCIONAL</p>
+          <p className="text-sm opacity-60">Presiona ESCANEAR ROTACIÓN para analizar los 12 ETFs</p>
+          <div className="grid grid-cols-6 gap-2 text-xs opacity-30 mt-2">
+            {["SPY","QQQ","XLK","XLE","XLF","XLV","XLI","XLY","XLP","XLC","GLD","TLT"].map((t) => (
+              <span key={t} className="border border-border px-2 py-1 text-center">{t}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+          <div className="w-10 h-10 border-4 border-accent border-t-transparent animate-spin rounded-full" />
+          <p className="text-sm text-muted tracking-widest">ANALIZANDO 12 ETFs EN PARALELO...</p>
+          <p className="text-xs text-muted opacity-50">SPY · QQQ · XLK · XLE · XLF · XLV · XLI · XLY · XLP · XLC · GLD · TLT</p>
+        </div>
+      )}
+
+      {/* Results */}
+      {data && !loading && (
+        <main className="p-4 sm:p-6 space-y-6">
+
+          {/* Rotation signal hero */}
+          {rotationSignal && (
+            <section className="bg-card border border-border p-6 space-y-4">
+              <p className="text-[9px] text-muted tracking-widest">SEÑAL GLOBAL DE ROTACIÓN · GEX INSTITUCIONAL · {new Date(data.timestamp).toLocaleTimeString("es-ES")}</p>
+              <p className={`text-3xl sm:text-4xl font-black tracking-widest ${rotationSignal.color}`}>
+                {rotationSignal.signal}
+              </p>
+              <p className="text-sm text-subtle leading-relaxed max-w-2xl">{rotationSignal.description}</p>
+
+              {/* Group pressure bars */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-border">
+                <div className="space-y-2">
+                  <p className="text-[9px] text-muted tracking-widest font-bold">GROWTH / TECH</p>
+                  <GroupBar label="XLK · XLY · XLC · QQQ" etfs={data.etfs} tickers={["XLK","XLY","XLC","QQQ"]} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[9px] text-muted tracking-widest font-bold">DEFENSIVOS</p>
+                  <GroupBar label="XLP · XLV · XLI" etfs={data.etfs} tickers={["XLP","XLV","XLI"]} />
+                  <GroupBar label="XLE · XLF" etfs={data.etfs} tickers={["XLE","XLF"]} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[9px] text-muted tracking-widest font-bold">ALTERNATIVOS (REFUGIO)</p>
+                  <GroupBar label="GLD · TLT" etfs={data.etfs} tickers={["GLD","TLT"]} />
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Group filter */}
+          <div className="flex items-center gap-2">
+            <p className="text-[9px] text-muted tracking-widest font-bold">FILTRAR:</p>
+            {(["all", "broad", "sector", "alternative"] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => setGroupFilter(g)}
+                className={`text-xs px-3 py-1 border tracking-widest transition-colors ${
+                  groupFilter === g
+                    ? "bg-accent text-white border-accent"
+                    : "border-border text-muted hover:text-text"
+                }`}
+              >
+                {g === "all" ? "TODOS" : GROUP_LABELS[g]}
+              </button>
+            ))}
+          </div>
+
+          {/* ETF grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {visibleEtfs.map((etf) => (
+              <ETFCard key={etf.ticker} etf={etf} />
+            ))}
+          </div>
+
+          {/* Footer note */}
+          <p className="text-[10px] text-muted text-center pb-4 opacity-50 tracking-widest">
+            Actualizado {new Date(data.timestamp).toLocaleString("es-ES")} · Score basado en GEX + PCR (M1) · Presión institucional −100 a +100
+          </p>
+        </main>
+      )}
+    </div>
+  );
+}
