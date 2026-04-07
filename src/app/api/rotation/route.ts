@@ -14,20 +14,24 @@ const BATCH_DELAY = 450; // ms entre lotes
 const MAX_RETRIES = 2;   // reintentos en caso de 429
 
 const SECTOR_ETFS = [
-  { ticker: "QQQ",  label: "Nasdaq 100",         group: "broad"       },
-  { ticker: "XLK",  label: "Tecnología",         group: "sector"      },
-  { ticker: "XLY",  label: "Cons. Discrecional", group: "sector"      },
-  { ticker: "XLC",  label: "Comunicaciones",     group: "sector"      },
-  { ticker: "XLF",  label: "Finanzas",           group: "sector"      },
-  { ticker: "XLE",  label: "Energía",            group: "sector"      },
-  { ticker: "XLI",  label: "Industriales",       group: "sector"      },
-  { ticker: "XLB",  label: "Materiales",         group: "sector"      },
-  { ticker: "XLV",  label: "Salud",              group: "sector"      },
-  { ticker: "XLP",  label: "Cons. Básico",       group: "sector"      },
-  { ticker: "TLT",  label: "Bonos 20Y",          group: "alternative" },
-  { ticker: "GLD",  label: "Oro",                group: "alternative" },
-  { ticker: "HYG",  label: "Bonos Basura",       group: "alternative" },
+  { ticker: "QQQ", label: "Nasdaq 100",          group: "broad"       },
+  { ticker: "XLK", label: "Tecnologia",           group: "sector"      },
+  { ticker: "XLY", label: "Cons. Discrecional",   group: "sector"      },
+  { ticker: "XLC", label: "Comunicaciones",       group: "sector"      },
+  { ticker: "XLF", label: "Finanzas",             group: "sector"      },
+  { ticker: "XLE", label: "Energia",              group: "sector"      },
+  { ticker: "XLI", label: "Industriales",         group: "sector"      },
+  { ticker: "XLB", label: "Materiales",           group: "sector"      },
+  { ticker: "XLV", label: "Salud",                group: "sector"      },
+  { ticker: "XLP", label: "Cons. Basico",         group: "sector"      },
+  { ticker: "TLT", label: "Bonos 20Y",            group: "alternative" },
+  { ticker: "GLD", label: "Oro",                  group: "alternative" },
+  { ticker: "HYG", label: "Bonos Basura",         group: "alternative" },
 ] as const;
+
+type SectorETF = typeof SECTOR_ETFS[number];
+type Group = SectorETF["group"];
+type Verdict = "ALCISTA" | "BAJISTA" | "NEUTRAL";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -47,13 +51,10 @@ async function getCredentials(): Promise<{ crumb: string; cookie: string }> {
 async function fetchOptions(ticker: string, cookie: string, crumb: string, attempt = 0): Promise<any> {
   const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}?crumb=${crumb}`;
   const res = await fetch(url, { headers: { ...HEADERS, Cookie: cookie }, cache: "no-store" });
-
-  // Reintento con backoff si Yahoo devuelve 429 (rate limit)
   if (res.status === 429 && attempt < MAX_RETRIES) {
     await sleep(1000 * (attempt + 1));
     return fetchOptions(ticker, cookie, crumb, attempt + 1);
   }
-
   if (!res.ok) throw new Error(`Yahoo returned ${res.status} for ${ticker}`);
   const json = await res.json();
   const result = json?.optionChain?.result?.[0];
@@ -61,86 +62,75 @@ async function fetchOptions(ticker: string, cookie: string, crumb: string, attem
   return result;
 }
 
-// Procesa un array de items en lotes con delay entre lotes
-async function processInBatches<T, R>(
-  items: readonly T[],
-  batchSize: number,
-  delayMs: number,
-  fn: (item: T) => Promise<R>
-): Promise<PromiseSettledResult<R>[]> {
-  const results: PromiseSettledResult<R>[] = [];
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    const batchResults = await Promise.allSettled(batch.map(fn));
-    results.push(...batchResults);
-    if (i + batchSize < items.length) await sleep(delayMs);
-  }
-  return results;
-}
-
-function toVerdict(pressure: number): "ALCISTA" | "BAJISTA" | "NEUTRAL" {
+function toVerdict(pressure: number): Verdict {
   if (pressure > 15)  return "ALCISTA";
   if (pressure < -15) return "BAJISTA";
   return "NEUTRAL";
+}
+
+async function analyzeETF(etf: SectorETF, cookie: string, crumb: string) {
+  const data = await fetchOptions(etf.ticker, cookie, crumb);
+  const spot: number = data.quote?.regularMarketPrice;
+  if (!spot) throw new Error(`No price for ${etf.ticker}`);
+
+  const optData = data.options?.[0];
+  if (!optData) throw new Error(`No options chain for ${etf.ticker}`);
+
+  const expirationDates: number[] = data.expirationDates ?? [];
+  const availableExpirations = expirationDates.map(
+    (ts) => new Date(ts * 1000).toISOString().split("T")[0]
+  );
+  const primaryExp = availableExpirations[0] ?? "";
+
+  const calls = (optData.calls ?? []).map((c: any) => ({
+    strike: c.strike ?? 0,
+    impliedVolatility: c.impliedVolatility ?? 0,
+    openInterest: c.openInterest ?? 0,
+  }));
+  const puts = (optData.puts ?? []).map((p: any) => ({
+    strike: p.strike ?? 0,
+    impliedVolatility: p.impliedVolatility ?? 0,
+    openInterest: p.openInterest ?? 0,
+  }));
+
+  const analysis = computeAnalysis(etf.ticker, spot, primaryExp, availableExpirations, calls, puts);
+
+  return {
+    ticker:               etf.ticker,
+    label:                etf.label,
+    group:                etf.group as Group,
+    spot,
+    netGex:               analysis.netGex,
+    institutionalPressure: analysis.institutionalPressure,
+    putCallRatio:         analysis.putCallRatio,
+    gammaFlip:            analysis.levels.gammaFlip,
+    support:              analysis.levels.support,
+    resistance:           analysis.levels.resistance,
+    verdict:              toVerdict(analysis.institutionalPressure),
+  };
 }
 
 export async function GET() {
   try {
     const { crumb, cookie } = await getCredentials();
 
-    const results = await processInBatches(
-      SECTOR_ETFS,
-      BATCH_SIZE,
-      BATCH_DELAY,
-      async ({ ticker, label, group }) => {
-        const data  = await fetchOptions(ticker, cookie, crumb);
-        const spot: number = data.quote?.regularMarketPrice;
-        if (!spot) throw new Error(`No price for ${ticker}`);
+    const allResults: PromiseSettledResult<Awaited<ReturnType<typeof analyzeETF>>>[] = [];
 
-        const optData = data.options?.[0];
-        if (!optData) throw new Error(`No options chain for ${ticker}`);
+    for (let i = 0; i < SECTOR_ETFS.length; i += BATCH_SIZE) {
+      const batch = SECTOR_ETFS.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.allSettled(
+        batch.map((etf) => analyzeETF(etf, cookie, crumb))
+      );
+      allResults.push(...batchResults);
+      if (i + BATCH_SIZE < SECTOR_ETFS.length) await sleep(BATCH_DELAY);
+    }
 
-        const expirationDates: number[] = data.expirationDates ?? [];
-        const availableExpirations = expirationDates.map(
-          (ts) => new Date(ts * 1000).toISOString().split("T")[0]
-        );
-        const primaryExp = availableExpirations[0] ?? "";
-
-        const calls = (optData.calls ?? []).map((c: any) => ({
-          strike: c.strike ?? 0,
-          impliedVolatility: c.impliedVolatility ?? 0,
-          openInterest: c.openInterest ?? 0,
-        }));
-        const puts = (optData.puts ?? []).map((p: any) => ({
-          strike: p.strike ?? 0,
-          impliedVolatility: p.impliedVolatility ?? 0,
-          openInterest: p.openInterest ?? 0,
-        }));
-
-        const analysis = computeAnalysis(ticker, spot, primaryExp, availableExpirations, calls, puts);
-
-        return {
-          ticker,
-          label,
-          group,
-          spot,
-          netGex:               analysis.netGex,
-          institutionalPressure: analysis.institutionalPressure,
-          putCallRatio:         analysis.putCallRatio,
-          gammaFlip:            analysis.levels.gammaFlip,
-          support:              analysis.levels.support,
-          resistance:           analysis.levels.resistance,
-          verdict:              toVerdict(analysis.institutionalPressure),
-        };
-      }
-    );
-
-    const etfs = results.map((r, i) => {
+    const etfs = allResults.map((r, i) => {
       if (r.status === "fulfilled") return r.value;
       return {
         ticker:               SECTOR_ETFS[i].ticker,
         label:                SECTOR_ETFS[i].label,
-        group:                SECTOR_ETFS[i].group,
+        group:                SECTOR_ETFS[i].group as Group,
         spot:                 0,
         netGex:               0,
         institutionalPressure: 0,
@@ -148,12 +138,11 @@ export async function GET() {
         gammaFlip:            0,
         support:              0,
         resistance:           0,
-        verdict:              "NEUTRAL" as const,
+        verdict:              "NEUTRAL" as Verdict,
         error:                (r.reason as Error).message,
       };
     });
 
-    // Ordenar: primero ALCISTA (mayor pressure), luego NEUTRAL, luego BAJISTA
     etfs.sort((a, b) => b.institutionalPressure - a.institutionalPressure);
 
     return NextResponse.json({ etfs, timestamp: new Date().toISOString() });
