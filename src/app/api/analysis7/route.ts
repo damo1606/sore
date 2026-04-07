@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
   if (!ticker) return NextResponse.json({ error: "ticker is required" }, { status: 400 });
 
   try {
-    // Lanzar query histórica en paralelo con Yahoo Finance — no bloquea
+    // Lanzar queries históricas en paralelo con Yahoo Finance — no bloquean
     const snapshotsPromise = Promise.resolve(
       supabaseServer()
         .from("sr_snapshots")
@@ -90,6 +90,15 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(7)
     ).then((r) => r.data ?? []).catch(() => [] as Record<string, number | null>[]);
+
+    // Cargar alertas activas del ticker (fire-and-forget, no bloquea)
+    const alertsPromise = Promise.resolve(
+      supabaseServer()
+        .from("alerts")
+        .select("id,alert_type,level")
+        .eq("ticker", ticker)
+        .eq("triggered", false)
+    ).then((r) => r.data ?? []).catch(() => [] as { id: number; alert_type: string; level: number }[]);
 
     const { crumb, cookie } = await getCredentials();
 
@@ -256,7 +265,20 @@ export async function GET(request: NextRequest) {
       }))
       .then(() => {}).catch(() => {});
 
-    return NextResponse.json({ ...result, srTable: enrichedSrTable, availableExpirations });
+    // ── Comprobar alertas activas ─────────────────────────────────────────────
+    const activeAlerts = await alertsPromise;
+    const PROX = 0.005;
+    const triggeredAlerts: { id: number; alert_type: string; level: number }[] = [];
+
+    for (const alert of activeAlerts) {
+      const hit = Math.abs(spot - alert.level) / alert.level <= PROX;
+      if (hit) {
+        triggeredAlerts.push(alert);
+        supabaseServer().from("alerts").update({ triggered: true, triggered_at: new Date().toISOString() }).eq("id", alert.id).then(() => {}).catch(() => {});
+      }
+    }
+
+    return NextResponse.json({ ...result, srTable: enrichedSrTable, availableExpirations, triggeredAlerts });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "Unknown error" }, { status: 500 });
   }

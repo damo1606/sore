@@ -8,6 +8,7 @@ import Metodologia4 from "@/components/Metodologia4";
 import Metodologia5 from "@/components/Metodologia5";
 import Metodologia6 from "@/components/Metodologia6";
 import Metodologia7 from "@/components/Metodologia7";
+import ExpirationClarityChart from "@/components/ExpirationClarityChart";
 
 const TABS = ["METODOLOGÍA 1", "METODOLOGÍA 2", "METODOLOGÍA 3", "METODOLOGÍA 4", "METODOLOGÍA 5", "METODOLOGÍA 6", "METODOLOGÍA 7"] as const;
 type Tab = (typeof TABS)[number];
@@ -190,6 +191,9 @@ export default function Home() {
           </a>
           <a href="/rotacion" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
             ROTACIÓN
+          </a>
+          <a href="/backtest" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
+            BACKTEST
           </a>
         </div>
         <div className="flex items-center gap-2">
@@ -381,6 +385,11 @@ export default function Home() {
       </div>
       <div className={activeTab === "METODOLOGÍA 7" ? "" : "hidden"}>
         <Metodologia7 ticker={ticker} expiration={expiration} analyzeKey={analyzeKey} companyName={companyName} />
+        {analyzeKey > 0 && (
+          <div className="px-4 sm:px-6 py-6 border-t border-border bg-bg">
+            <ExpirationClarityChart ticker={ticker} />
+          </div>
+        )}
       </div>
     </div>
   );
