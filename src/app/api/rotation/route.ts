@@ -8,20 +8,28 @@ const HEADERS = {
   Referer: "https://finance.yahoo.com/",
 };
 
+// Lotes de 4 tickers con 450ms entre lotes para evitar bloqueos de Yahoo Finance
+const BATCH_SIZE  = 4;
+const BATCH_DELAY = 450; // ms entre lotes
+const MAX_RETRIES = 2;   // reintentos en caso de 429
+
 const SECTOR_ETFS = [
-  { ticker: "SPY",  label: "S&P 500",           group: "broad"       },
   { ticker: "QQQ",  label: "Nasdaq 100",         group: "broad"       },
   { ticker: "XLK",  label: "Tecnología",         group: "sector"      },
-  { ticker: "XLE",  label: "Energía",            group: "sector"      },
-  { ticker: "XLF",  label: "Finanzas",           group: "sector"      },
-  { ticker: "XLV",  label: "Salud",              group: "sector"      },
-  { ticker: "XLI",  label: "Industriales",       group: "sector"      },
   { ticker: "XLY",  label: "Cons. Discrecional", group: "sector"      },
-  { ticker: "XLP",  label: "Cons. Básico",       group: "sector"      },
   { ticker: "XLC",  label: "Comunicaciones",     group: "sector"      },
-  { ticker: "GLD",  label: "Oro",                group: "alternative" },
+  { ticker: "XLF",  label: "Finanzas",           group: "sector"      },
+  { ticker: "XLE",  label: "Energía",            group: "sector"      },
+  { ticker: "XLI",  label: "Industriales",       group: "sector"      },
+  { ticker: "XLB",  label: "Materiales",         group: "sector"      },
+  { ticker: "XLV",  label: "Salud",              group: "sector"      },
+  { ticker: "XLP",  label: "Cons. Básico",       group: "sector"      },
   { ticker: "TLT",  label: "Bonos 20Y",          group: "alternative" },
+  { ticker: "GLD",  label: "Oro",                group: "alternative" },
+  { ticker: "HYG",  label: "Bonos Basura",       group: "alternative" },
 ] as const;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function getCredentials(): Promise<{ crumb: string; cookie: string }> {
   const res1 = await fetch("https://fc.yahoo.com", { headers: HEADERS, redirect: "follow" });
@@ -36,14 +44,38 @@ async function getCredentials(): Promise<{ crumb: string; cookie: string }> {
   return { crumb, cookie };
 }
 
-async function fetchOptions(ticker: string, cookie: string, crumb: string) {
+async function fetchOptions(ticker: string, cookie: string, crumb: string, attempt = 0): Promise<any> {
   const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}?crumb=${crumb}`;
   const res = await fetch(url, { headers: { ...HEADERS, Cookie: cookie }, cache: "no-store" });
+
+  // Reintento con backoff si Yahoo devuelve 429 (rate limit)
+  if (res.status === 429 && attempt < MAX_RETRIES) {
+    await sleep(1000 * (attempt + 1));
+    return fetchOptions(ticker, cookie, crumb, attempt + 1);
+  }
+
   if (!res.ok) throw new Error(`Yahoo returned ${res.status} for ${ticker}`);
   const json = await res.json();
   const result = json?.optionChain?.result?.[0];
   if (!result) throw new Error(`No options data for ${ticker}`);
   return result;
+}
+
+// Procesa un array de items en lotes con delay entre lotes
+async function processInBatches<T, R>(
+  items: readonly T[],
+  batchSize: number,
+  delayMs: number,
+  fn: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(batch.map(fn));
+    results.push(...batchResults);
+    if (i + batchSize < items.length) await sleep(delayMs);
+  }
+  return results;
 }
 
 function toVerdict(pressure: number): "ALCISTA" | "BAJISTA" | "NEUTRAL" {
@@ -56,8 +88,11 @@ export async function GET() {
   try {
     const { crumb, cookie } = await getCredentials();
 
-    const results = await Promise.allSettled(
-      SECTOR_ETFS.map(async ({ ticker, label, group }) => {
+    const results = await processInBatches(
+      SECTOR_ETFS,
+      BATCH_SIZE,
+      BATCH_DELAY,
+      async ({ ticker, label, group }) => {
         const data  = await fetchOptions(ticker, cookie, crumb);
         const spot: number = data.quote?.regularMarketPrice;
         if (!spot) throw new Error(`No price for ${ticker}`);
