@@ -132,7 +132,7 @@ export async function GET() {
           resistance:           analysis.levels.resistance,
           verdict:              toVerdict(analysis.institutionalPressure),
         };
-      })
+      }
     );
 
     const etfs = results.map((r, i) => {
