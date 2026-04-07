@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 type Group = "broad" | "sector" | "alternative";
 type Verdict = "ALCISTA" | "BAJISTA" | "NEUTRAL";
@@ -22,7 +22,18 @@ interface ETFResult {
 
 interface RotationData {
   etfs: ETFResult[];
+  signal: string;
   timestamp: string;
+}
+
+interface HistorySnapshot {
+  id: number;
+  created_at: string;
+  signal: string;
+  growth_avg: number;
+  defensive_avg: number;
+  alt_avg: number;
+  etfs: ETFResult[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -280,11 +291,56 @@ const GROUP_LABELS: Record<Group, string> = {
 
 type GroupFilter = "all" | Group;
 
+// ─── Mini heatmap para historial ─────────────────────────────────────────────
+const HEATMAP_ORDER = ["QQQ","XLK","XLC","XLY","XLI","XLF","XLE","XLB","XLV","XLP","GLD","TLT","HYG"];
+
+function MiniHeatmap({ etfs }: { etfs: ETFResult[] }) {
+  return (
+    <div className="flex gap-0.5 flex-wrap mt-1">
+      {HEATMAP_ORDER.map((t) => {
+        const etf = etfs.find((e) => e.ticker === t);
+        if (!etf) return null;
+        const p   = etf.institutionalPressure;
+        const abs = Math.min(Math.abs(p) / 100, 1);
+        const bg  = p > 0
+          ? `rgba(34,197,94,${0.15 + abs * 0.75})`
+          : `rgba(239,68,68,${0.15 + abs * 0.75})`;
+        return (
+          <div
+            key={t}
+            title={`${t}: ${p > 0 ? "+" : ""}${Math.round(p)}`}
+            style={{ backgroundColor: bg }}
+            className="w-6 h-5 rounded-sm flex items-center justify-center"
+          >
+            <span className="text-[7px] font-bold text-white/80">{t.replace("XL","")}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function signalColor(signal: string) {
+  if (signal.includes("RISK-ON"))    return "text-accent";
+  if (signal.includes("RISK-OFF"))   return "text-danger";
+  if (signal.includes("VALUE"))      return "text-warning";
+  if (signal.includes("DEFENSIVO"))  return "text-warning";
+  return "text-muted";
+}
+
 export default function RotacionPage() {
   const [data, setData] = useState<RotationData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
+  const [history, setHistory] = useState<HistorySnapshot[]>([]);
+
+  useEffect(() => {
+    fetch("/api/rotation/history")
+      .then((r) => r.json())
+      .then((j) => setHistory(j.snapshots ?? []))
+      .catch(() => {});
+  }, []);
 
   const handleScan = useCallback(async () => {
     setLoading(true);
@@ -294,6 +350,11 @@ export default function RotacionPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error al obtener datos");
       setData(json);
+      // Refrescar historial tras el nuevo scan
+      fetch("/api/rotation/history")
+        .then((r) => r.json())
+        .then((j) => setHistory(j.snapshots ?? []))
+        .catch(() => {});
     } catch (e: any) {
       setError(e.message);
     }
@@ -460,6 +521,29 @@ export default function RotacionPage() {
           <p className="text-[10px] text-muted text-center pb-4 opacity-50 tracking-widest">
             Actualizado {new Date(data.timestamp).toLocaleString("es-ES")} · Score basado en GEX + PCR (M1) · Presión institucional −100 a +100
           </p>
+
+          {/* Historial de scans */}
+          {history.length > 0 && (
+            <section className="bg-card border border-border p-6 space-y-4">
+              <p className="text-[9px] text-muted tracking-widest font-bold">HISTORIAL DE SCANS · ULTIMOS {history.length}</p>
+              <div className="space-y-3">
+                {history.map((snap) => (
+                  <div key={snap.id} className="border border-border p-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-bold tracking-widest ${signalColor(snap.signal)}`}>{snap.signal}</span>
+                      <span className="text-[10px] text-muted">{new Date(snap.created_at).toLocaleString("es-ES")}</span>
+                    </div>
+                    <div className="flex gap-4 text-[10px] text-muted">
+                      <span>GROWTH <span className={snap.growth_avg >= 0 ? "text-accent" : "text-danger"}>{snap.growth_avg > 0 ? "+" : ""}{Math.round(snap.growth_avg)}</span></span>
+                      <span>DEFENSIVO <span className={snap.defensive_avg >= 0 ? "text-accent" : "text-danger"}>{snap.defensive_avg > 0 ? "+" : ""}{Math.round(snap.defensive_avg)}</span></span>
+                      <span>REFUGIO <span className={snap.alt_avg >= 0 ? "text-accent" : "text-danger"}>{snap.alt_avg > 0 ? "+" : ""}{Math.round(snap.alt_avg)}</span></span>
+                    </div>
+                    <MiniHeatmap etfs={snap.etfs} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </main>
       )}
     </div>

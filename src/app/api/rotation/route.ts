@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeAnalysis } from "@/lib/gex";
+import { supabaseServer } from "@/lib/supabase";
 
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -145,7 +146,31 @@ export async function GET() {
 
     etfs.sort((a, b) => b.institutionalPressure - a.institutionalPressure);
 
-    return NextResponse.json({ etfs, timestamp: new Date().toISOString() });
+    // ── Calcular promedios de grupo para el signal ────────────────────────────
+    const avg = (tickers: string[]) => {
+      const subset = etfs.filter((e) => tickers.includes(e.ticker) && !("error" in e));
+      if (!subset.length) return 0;
+      return subset.reduce((s, e) => s + e.institutionalPressure, 0) / subset.length;
+    };
+    const growthAvg    = avg(["XLK", "XLY", "XLC", "QQQ"]);
+    const defensiveAvg = avg(["XLP", "XLV"]);
+    const altAvg       = avg(["GLD", "TLT"]);
+    const energyScore  = avg(["XLE"]);
+    const finScore     = avg(["XLF"]);
+
+    let signal = "MIXTO";
+    if (growthAvg > 20 && altAvg < -5)                        signal = "RISK-ON GROWTH";
+    else if (altAvg > 20 && growthAvg < -5)                   signal = "RISK-OFF REFUGIO";
+    else if ((energyScore > 20 || finScore > 20) && growthAvg < -5) signal = "ROTACION VALUE";
+    else if (defensiveAvg > 20 && growthAvg < 0)              signal = "DEFENSIVO CAUTELA";
+
+    // ── Guardar snapshot (fire-and-forget) ────────────────────────────────────
+    Promise.resolve(supabaseServer()
+      .from("rotation_snapshots")
+      .insert({ signal, growth_avg: growthAvg, defensive_avg: defensiveAvg, alt_avg: altAvg, etfs })
+    ).then(() => {}).catch(() => {});
+
+    return NextResponse.json({ etfs, signal, timestamp: new Date().toISOString() });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "Unknown error" }, { status: 500 });
   }
