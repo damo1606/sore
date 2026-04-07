@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     }));
 
   // Deduplicar por fecha de vencimiento (quedarse con el más reciente)
-  const deduped = [...new Map(points.map((p) => [p.date, p])).values()];
+  const deduped = Array.from(new Map(points.map((p) => [p.date, p])).values());
 
   return NextResponse.json({ ticker, points: deduped });
 }
