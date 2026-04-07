@@ -195,6 +195,9 @@ export default function Home() {
           <a href="/backtest" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
             BACKTEST
           </a>
+          <a href="/alertas" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">
+            ALERTAS
+          </a>
         </div>
         <div className="flex items-center gap-2">
           <button

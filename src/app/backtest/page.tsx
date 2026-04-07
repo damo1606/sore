@@ -164,6 +164,7 @@ export default function BacktestPage() {
           <a href="/" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">ANÁLISIS</a>
           <a href="/rotacion" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">ROTACIÓN</a>
           <span className="text-xs text-accent border border-accent px-3 py-1 tracking-widest font-bold hidden sm:block">BACKTEST</span>
+          <a href="/alertas" className="text-xs text-muted border border-border px-3 py-1 tracking-widest hover:text-accent hover:border-accent transition-colors hidden sm:block">ALERTAS</a>
         </div>
         <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; }} className="text-xs text-white tracking-widest bg-red-600 hover:bg-red-700 transition-colors px-3 py-1 font-bold">
           CERRAR SESIÓN
