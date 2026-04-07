@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const STORAGE_KEY = "sore-portafolios-v2";
 const MAX_PORTFOLIOS = 8;
@@ -13,6 +13,29 @@ interface Portfolio {
 }
 
 interface SearchResult { symbol: string; name: string; exchange: string; }
+
+type Direction = "CALL" | "PUT" | "LONG" | "SHORT";
+type TradeStatus = "open" | "closed";
+
+interface Trade {
+  id: number;
+  created_at: string;
+  ticker: string;
+  direction: Direction;
+  entry_price: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  status: TradeStatus;
+  outcome_pnl: number | null;
+  notes: string | null;
+}
+
+const DIR_COLOR: Record<Direction, string> = {
+  CALL:  "text-accent",
+  LONG:  "text-accent",
+  PUT:   "text-danger",
+  SHORT: "text-danger",
+};
 
 function createPortfolio(name: string): Portfolio {
   return {
@@ -34,6 +57,24 @@ export default function PortafolioPage() {
   const [dark, setDark] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+
+  // ── Trade log state ────────────────────────────────────────────────────────
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [tradeFilter, setTradeFilter] = useState<"open" | "closed" | "all">("open");
+  const [tradeForm, setTradeForm] = useState({ ticker: "", direction: "CALL" as Direction, entry_price: "", stop_loss: "", take_profit: "", notes: "" });
+  const [tradeFormOpen, setTradeFormOpen] = useState(false);
+  const [closingId, setClosingId] = useState<number | null>(null);
+  const [closePnl, setClosePnl] = useState("");
+
+  const fetchTrades = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/trades?status=${tradeFilter}`);
+      const json = await res.json();
+      setTrades(json.trades ?? []);
+    } catch {}
+  }, [tradeFilter]);
+
+  useEffect(() => { fetchTrades(); }, [fetchTrades]);
 
   // Load from localStorage
   useEffect(() => {
@@ -141,6 +182,35 @@ export default function PortafolioPage() {
     const isDark = document.documentElement.classList.toggle("dark");
     localStorage.setItem("sore-theme", isDark ? "dark" : "light");
     setDark(isDark);
+  }
+
+  async function submitTrade() {
+    if (!tradeForm.ticker || !tradeForm.entry_price) return;
+    await fetch("/api/trades", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...tradeForm, entry_price: Number(tradeForm.entry_price), stop_loss: tradeForm.stop_loss ? Number(tradeForm.stop_loss) : null, take_profit: tradeForm.take_profit ? Number(tradeForm.take_profit) : null }),
+    });
+    setTradeForm({ ticker: "", direction: "CALL", entry_price: "", stop_loss: "", take_profit: "", notes: "" });
+    setTradeFormOpen(false);
+    fetchTrades();
+  }
+
+  async function closeTrade(id: number) {
+    await fetch(`/api/trades/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "closed", outcome_pnl: closePnl ? Number(closePnl) : null }),
+    });
+    setClosingId(null);
+    setClosePnl("");
+    fetchTrades();
+  }
+
+  async function deleteTrade(id: number) {
+    if (!confirm("¿Eliminar este trade?")) return;
+    await fetch(`/api/trades/${id}`, { method: "DELETE" });
+    fetchTrades();
   }
 
   return (
@@ -338,6 +408,112 @@ export default function PortafolioPage() {
             </div>
           </div>
         )}
+        {/* ── TRADE LOG ────────────────────────────────────────────── */}
+        <div className="mt-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-black tracking-[0.3em] text-accent">TRADE LOG</h2>
+              <p className="text-[10px] text-muted tracking-widest">Registro de operaciones vinculadas al análisis GEX</p>
+            </div>
+            <button
+              onClick={() => setTradeFormOpen((v) => !v)}
+              className="bg-accent text-white px-5 py-2 text-xs font-bold tracking-widest hover:opacity-80 transition-opacity"
+            >
+              {tradeFormOpen ? "CANCELAR" : "+ NUEVO TRADE"}
+            </button>
+          </div>
+
+          {/* Formulario nuevo trade */}
+          {tradeFormOpen && (
+            <div className="bg-card border border-border p-5 mb-4 space-y-3">
+              <p className="text-[9px] text-muted tracking-widest font-bold">REGISTRAR OPERACIÓN</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <input className="bg-bg border border-border text-text px-3 py-2 text-sm uppercase tracking-widest focus:outline-none focus:border-accent" placeholder="TICKER" value={tradeForm.ticker} onChange={(e) => setTradeForm((f) => ({ ...f, ticker: e.target.value.toUpperCase() }))} maxLength={10} />
+                <select className="bg-bg border border-border text-text px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent" value={tradeForm.direction} onChange={(e) => setTradeForm((f) => ({ ...f, direction: e.target.value as Direction }))}>
+                  <option value="CALL">CALL</option>
+                  <option value="PUT">PUT</option>
+                  <option value="LONG">LONG</option>
+                  <option value="SHORT">SHORT</option>
+                </select>
+                <input className="bg-bg border border-border text-text px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent" placeholder="ENTRY PRICE" type="number" step="0.01" value={tradeForm.entry_price} onChange={(e) => setTradeForm((f) => ({ ...f, entry_price: e.target.value }))} />
+                <input className="bg-bg border border-border text-text px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent" placeholder="STOP LOSS" type="number" step="0.01" value={tradeForm.stop_loss} onChange={(e) => setTradeForm((f) => ({ ...f, stop_loss: e.target.value }))} />
+                <input className="bg-bg border border-border text-text px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent" placeholder="TAKE PROFIT" type="number" step="0.01" value={tradeForm.take_profit} onChange={(e) => setTradeForm((f) => ({ ...f, take_profit: e.target.value }))} />
+                <input className="bg-bg border border-border text-text px-3 py-2 text-sm tracking-widest focus:outline-none focus:border-accent" placeholder="NOTAS" value={tradeForm.notes} onChange={(e) => setTradeForm((f) => ({ ...f, notes: e.target.value }))} />
+              </div>
+              <button onClick={submitTrade} className="bg-accent text-white px-6 py-2 text-xs font-bold tracking-widest hover:opacity-80 transition-opacity">
+                GUARDAR TRADE
+              </button>
+            </div>
+          )}
+
+          {/* Filtros */}
+          <div className="flex gap-2 mb-3">
+            {(["open", "closed", "all"] as const).map((f) => (
+              <button key={f} onClick={() => setTradeFilter(f)} className={`text-xs px-3 py-1 border tracking-widest transition-colors ${tradeFilter === f ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-text"}`}>
+                {f === "open" ? "ABIERTOS" : f === "closed" ? "CERRADOS" : "TODOS"}
+              </button>
+            ))}
+          </div>
+
+          {/* Tabla de trades */}
+          {trades.length === 0 ? (
+            <div className="bg-card border border-border py-12 flex flex-col items-center gap-2 text-muted">
+              <p className="text-xs tracking-widest">SIN TRADES REGISTRADOS</p>
+            </div>
+          ) : (
+            <div className="bg-card border border-border overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted tracking-widest text-left">
+                    <th className="px-4 py-3">TICKER</th>
+                    <th className="px-4 py-3">DIR</th>
+                    <th className="px-4 py-3">ENTRY</th>
+                    <th className="px-4 py-3">SL</th>
+                    <th className="px-4 py-3">TP</th>
+                    <th className="px-4 py-3">P&L</th>
+                    <th className="px-4 py-3">NOTAS</th>
+                    <th className="px-4 py-3">FECHA</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trades.map((t) => (
+                    <tr key={t.id} className="border-b border-border hover:bg-surface transition-colors">
+                      <td className="px-4 py-3 font-bold text-accent">
+                        <a href={`/?ticker=${t.ticker}`} className="hover:underline">{t.ticker}</a>
+                      </td>
+                      <td className={`px-4 py-3 font-bold ${DIR_COLOR[t.direction]}`}>{t.direction}</td>
+                      <td className="px-4 py-3 font-mono">${t.entry_price.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-mono text-danger">{t.stop_loss ? `$${t.stop_loss.toFixed(2)}` : "—"}</td>
+                      <td className="px-4 py-3 font-mono text-accent">{t.take_profit ? `$${t.take_profit.toFixed(2)}` : "—"}</td>
+                      <td className={`px-4 py-3 font-mono font-bold ${t.outcome_pnl == null ? "text-muted" : t.outcome_pnl >= 0 ? "text-accent" : "text-danger"}`}>
+                        {t.outcome_pnl == null ? "—" : `${t.outcome_pnl >= 0 ? "+" : ""}${t.outcome_pnl.toFixed(2)}`}
+                      </td>
+                      <td className="px-4 py-3 text-muted max-w-[150px] truncate">{t.notes ?? "—"}</td>
+                      <td className="px-4 py-3 text-muted">{new Date(t.created_at).toLocaleDateString("es-ES")}</td>
+                      <td className="px-4 py-3">
+                        {t.status === "open" ? (
+                          closingId === t.id ? (
+                            <div className="flex gap-1 items-center">
+                              <input type="number" step="0.01" placeholder="P&L" className="w-20 bg-bg border border-border px-2 py-1 text-xs focus:outline-none focus:border-accent" value={closePnl} onChange={(e) => setClosePnl(e.target.value)} />
+                              <button onClick={() => closeTrade(t.id)} className="text-accent border border-accent px-2 py-1 text-[10px] hover:bg-accent hover:text-white transition-colors">OK</button>
+                              <button onClick={() => setClosingId(null)} className="text-muted border border-border px-2 py-1 text-[10px]">✕</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => { setClosingId(t.id); setClosePnl(""); }} className="text-xs text-warning border border-warning px-2 py-1 tracking-widest hover:bg-warning hover:text-white transition-colors">CERRAR</button>
+                          )
+                        ) : (
+                          <button onClick={() => deleteTrade(t.id)} className="text-xs text-muted border border-border px-2 py-1 tracking-widest hover:text-danger hover:border-danger transition-colors">DEL</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
