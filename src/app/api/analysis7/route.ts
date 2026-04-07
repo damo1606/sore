@@ -221,7 +221,7 @@ export async function GET(request: NextRequest) {
     });
 
     // ── Guardar snapshot (fire-and-forget) ────────────────────────────────────
-    supabaseServer()
+    Promise.resolve(supabaseServer()
       .from("sr_snapshots")
       .insert({
         ticker,
@@ -253,9 +253,8 @@ export async function GET(request: NextRequest) {
         m7_regime_multiplier:      result.regimeMultiplier,
         m7_sr_table:               result.srTable,
         m7_timing_matrix:          result.timingMatrix,
-      })
-      .then(() => {})
-      .catch(() => {});
+      }))
+      .then(() => {}).catch(() => {});
 
     return NextResponse.json({ ...result, srTable: enrichedSrTable, availableExpirations });
   } catch (e: any) {
