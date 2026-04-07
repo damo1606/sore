@@ -5,6 +5,19 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
 
+interface ScoredLevel {
+  module:             string;
+  level_type:         "support" | "resistance";
+  level:              number;
+  spot:               number;
+  distance_pct:       number;
+  probability:        number;
+  confidence:         "ALTA" | "MEDIA" | "BAJA";
+  breakdown:          Record<string, number>;
+  backtest_accuracy:  number | null;
+  direction_accuracy: number | null;
+}
+
 interface ModuleStat {
   module:             string;
   total_levels:       number;
@@ -75,6 +88,23 @@ export default function BacktestPage() {
   const [summary, setSummary]       = useState<{ snapshots_processed?: number; levels_evaluated?: number; splits_detected?: number } | null>(null);
   const [moduleFilter, setModuleFilter] = useState("GLOBAL");
   const [showTested, setShowTested] = useState(true);
+  const [scoredLevels, setScoredLevels]   = useState<ScoredLevel[]>([]);
+  const [scoresMeta, setScoresMeta]       = useState<{ spot?: number; regime?: string; m7_verdict?: string; m7_confidence?: number; backtest_ran?: boolean } | null>(null);
+  const [scoresLoading, setScoresLoading] = useState(false);
+
+  // Cargar scores de niveles activos
+  async function loadScores(t: string) {
+    setScoresLoading(true);
+    try {
+      const res  = await fetch(`/api/score/levels?ticker=${t}`);
+      const json = await res.json();
+      if (res.ok) {
+        setScoredLevels(json.levels ?? []);
+        setScoresMeta({ spot: json.spot, regime: json.regime, m7_verdict: json.m7_verdict, m7_confidence: json.m7_confidence, backtest_ran: json.backtest_ran });
+      }
+    } catch {}
+    setScoresLoading(false);
+  }
 
   // Cargar resultados existentes al cambiar ticker
   async function loadResults(t: string) {
@@ -82,9 +112,12 @@ export default function BacktestPage() {
     setLoading(true);
     setError("");
     try {
-      const res  = await fetch(`/api/backtest/results?ticker=${t}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error");
+      const [btRes, _] = await Promise.all([
+        fetch(`/api/backtest/results?ticker=${t}`),
+        loadScores(t),
+      ]);
+      const json = await btRes.json();
+      if (!btRes.ok) throw new Error(json.error ?? "Error");
       setStats(json.stats ?? []);
       setResults(json.results ?? []);
       setRan(json.ran ?? false);
@@ -177,6 +210,26 @@ export default function BacktestPage() {
           </div>
         )}
 
+        {/* Scores predictivos — visibles siempre que haya snapshot, independiente del backtest */}
+        {!ran && scoredLevels.length > 0 && (
+          <div className="bg-card border border-border p-5 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <p className="text-[9px] text-muted tracking-widest font-bold">NIVELES ACTIVOS · SCORE PREDICTIVO</p>
+                <p className="text-[10px] text-warning mt-0.5">Sin backtest previo — usando prior neutro (50%) para features históricas</p>
+              </div>
+              {scoresMeta && (
+                <div className="text-[10px] text-muted flex gap-4">
+                  <span>SPOT <span className="text-text font-mono font-bold">${scoresMeta.spot?.toFixed(2)}</span></span>
+                  <span>RÉGIMEN <span className="text-accent font-bold">{scoresMeta.regime}</span></span>
+                  <span>M7 <span className="text-text font-mono">{scoresMeta.m7_confidence}%</span></span>
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-muted">Ejecuta el backtest para aumentar la precisión del modelo con datos históricos reales.</p>
+          </div>
+        )}
+
         {ran && stats.length > 0 && (
           <>
             {/* Stats globales */}
@@ -228,6 +281,84 @@ export default function BacktestPage() {
                 </div>
               ))}
             </div>
+
+            {/* Niveles activos con score predictivo */}
+            {(scoredLevels.length > 0 || scoresLoading) && (
+              <div className="bg-card border border-border p-5 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <p className="text-[9px] text-muted tracking-widest font-bold">NIVELES ACTIVOS · SCORE PREDICTIVO</p>
+                    <p className="text-[10px] text-muted mt-0.5">
+                      P(respetado) = backtest histórico × confianza M7 × régimen × distancia
+                      {scoresMeta?.backtest_ran === false && <span className="text-warning ml-2">· sin backtest previo, usando prior neutro</span>}
+                    </p>
+                  </div>
+                  {scoresMeta && (
+                    <div className="text-[10px] text-muted flex gap-4">
+                      <span>SPOT <span className="text-text font-mono font-bold">${scoresMeta.spot?.toFixed(2)}</span></span>
+                      <span>RÉGIMEN <span className="text-accent font-bold">{scoresMeta.regime}</span></span>
+                      <span>M7 <span className="text-text font-mono">{scoresMeta.m7_confidence}%</span></span>
+                    </div>
+                  )}
+                </div>
+
+                {scoresLoading ? (
+                  <p className="text-xs text-muted tracking-widest animate-pulse">CALCULANDO SCORES...</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border text-muted tracking-widest text-left bg-surface">
+                          <th className="px-3 py-2">MOD</th>
+                          <th className="px-3 py-2">TIPO</th>
+                          <th className="px-3 py-2">NIVEL</th>
+                          <th className="px-3 py-2">DISTANCIA</th>
+                          <th className="px-3 py-2">BT ACCURACY</th>
+                          <th className="px-3 py-2 min-w-[160px]">P(RESPETADO)</th>
+                          <th className="px-3 py-2">CONFIANZA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scoredLevels.map((l, i) => {
+                          const probColor = l.probability >= 65 ? "#22c55e" : l.probability >= 45 ? "#f59e0b" : "#ef4444";
+                          const confBg    = l.confidence === "ALTA" ? "bg-accent/20 text-accent" : l.confidence === "MEDIA" ? "bg-warning/20 text-warning" : "bg-danger/20 text-danger";
+                          return (
+                            <tr key={i} className="border-b border-border hover:bg-surface transition-colors">
+                              <td className="px-3 py-2.5 font-bold text-accent">{l.module}</td>
+                              <td className={`px-3 py-2.5 font-bold text-[10px] ${l.level_type === "support" ? "text-accent" : "text-danger"}`}>
+                                {l.level_type === "support" ? "SOPORTE" : "RESISTENCIA"}
+                              </td>
+                              <td className="px-3 py-2.5 font-mono font-bold">${l.level.toFixed(2)}</td>
+                              <td className={`px-3 py-2.5 font-mono ${l.distance_pct <= 1 ? "text-warning font-bold" : "text-muted"}`}>
+                                {l.distance_pct.toFixed(2)}%
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-muted">
+                                {l.backtest_accuracy != null ? `${l.backtest_accuracy}%` : <span className="italic text-muted/50">sin data</span>}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-2 bg-surface rounded-full overflow-hidden min-w-[80px]">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${l.probability}%`, backgroundColor: probColor }} />
+                                  </div>
+                                  <span className="font-mono font-bold text-[11px] w-12 text-right" style={{ color: probColor }}>
+                                    {l.probability}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold rounded tracking-widest ${confBg}`}>
+                                  {l.confidence}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Filtros tabla detalle */}
             <div className="flex items-center gap-3 flex-wrap">
