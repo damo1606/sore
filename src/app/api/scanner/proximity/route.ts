@@ -65,6 +65,8 @@ function extractLevels(snap: any): { module: string; level_type: "support" | "re
 export async function GET(req: NextRequest) {
   const threshold   = parseFloat(req.nextUrl.searchParams.get("threshold")   ?? "5");
   const minAgeDays  = parseInt(  req.nextUrl.searchParams.get("min_age_days") ?? "30", 10);
+  const tickersParam = req.nextUrl.searchParams.get("tickers");
+  const filterTickers = tickersParam ? tickersParam.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean) : null;
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - minAgeDays);
@@ -73,12 +75,17 @@ export async function GET(req: NextRequest) {
   const db = supabaseServer();
 
   // ── 1. Snapshots confirmados (creados hace >= minAgeDays) ──────────────────
-  // Por ticker: el más reciente que tenga al menos minAgeDays de antigüedad
-  const { data: snapshots, error } = await db
+  let query = db
     .from("sr_snapshots")
     .select("ticker, created_at, spot, m7_regime, m7_final_verdict, m7_confidence, m7_final_score, m1_support, m1_resistance, m2_support, m2_resistance, m3_support, m3_resistance, m5_support_strike, m5_resistance_strike")
     .lte("created_at", cutoff)
     .order("created_at", { ascending: false });
+
+  if (filterTickers?.length) {
+    query = query.in("ticker", filterTickers);
+  }
+
+  const { data: snapshots, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!snapshots?.length) return NextResponse.json({ alerts: [], tickers_scanned: 0, message: `Sin snapshots con más de ${minAgeDays} días de antigüedad` });
@@ -148,6 +155,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     alerts,
     tickers_scanned:    tickers.length,
+    analyzed_tickers:   tickers,
     threshold_usd:      threshold,
     min_age_days:       minAgeDays,
     cutoff_date:        cutoff.split("T")[0],
