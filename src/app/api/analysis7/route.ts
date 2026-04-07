@@ -274,7 +274,7 @@ export async function GET(request: NextRequest) {
       const hit = Math.abs(spot - alert.level) / alert.level <= PROX;
       if (hit) {
         triggeredAlerts.push(alert);
-        supabaseServer().from("alerts").update({ triggered: true, triggered_at: new Date().toISOString() }).eq("id", alert.id).then(() => {}).catch(() => {});
+        Promise.resolve(supabaseServer().from("alerts").update({ triggered: true, triggered_at: new Date().toISOString() }).eq("id", alert.id)).then(() => {}).catch(() => {});
       }
     }
 
