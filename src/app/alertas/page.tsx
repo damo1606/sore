@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DEFAULT_WATCHLIST, LISTA_1, LISTA_2, LISTA_3, LIST_LABELS, LIST_COLORS, type WatchlistTicker } from "@/lib/watchlist";
 
 interface ProximityAlert {
@@ -25,6 +25,15 @@ interface ScanMeta {
   cutoff_date:     string;
 }
 
+interface BatchState {
+  running:   boolean;
+  total:     number;
+  done:      number;
+  current:   string;
+  errors:    string[];
+  completed: string[];
+}
+
 function DistanceBar({ usd, threshold }: { usd: number; threshold: number }) {
   const pct   = Math.min(100, ((threshold - usd) / threshold) * 100);
   const color = usd <= 1 ? "#ef4444" : usd <= 2.5 ? "#f59e0b" : "#22c55e";
@@ -44,6 +53,9 @@ const LISTS = [
   { id: 3, tickers: LISTA_3 },
 ];
 
+const BATCH_SIZE  = 3;
+const BATCH_DELAY = 1200; // ms entre lotes
+
 export default function AlertasPage() {
   const [threshold,    setThreshold]    = useState(5);
   const [minAge,       setMinAge]       = useState(30);
@@ -54,48 +66,100 @@ export default function AlertasPage() {
   const [lastScan,     setLastScan]     = useState<string | null>(null);
   const [typeFilter,   setTypeFilter]   = useState<"ALL" | "support" | "resistance">("ALL");
   const [moduleFilter, setModuleFilter] = useState("ALL");
-  const [listFilter,   setListFilter]   = useState<0 | 1 | 2 | 3>(0); // 0 = todas
+  const [listFilter,   setListFilter]   = useState<0 | 1 | 2 | 3>(0);
   const [analyzedSet,  setAnalyzedSet]  = useState<Set<string>>(new Set());
+  const [batch,        setBatch]        = useState<BatchState>({ running: false, total: 0, done: 0, current: "", errors: [], completed: [] });
+  const stopRef = useRef(false);
 
   const watchlistTickers = DEFAULT_WATCHLIST.map((w) => w.ticker);
 
+  // ── Cargar estado de análisis (qué tickers ya tienen snapshot) ──────────────
+  const loadStatus = useCallback(async () => {
+    try {
+      const res  = await fetch(`/api/watchlist/status?tickers=${watchlistTickers.join(",")}`);
+      const json = await res.json();
+      setAnalyzedSet(new Set<string>(json.analyzed ?? []));
+    } catch {}
+  }, []);
+
+  // ── Scanner de proximidad ───────────────────────────────────────────────────
   const runScan = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const tickersParam = watchlistTickers.join(",");
-      const res  = await fetch(`/api/scanner/proximity?threshold=${threshold}&min_age_days=${minAge}&tickers=${tickersParam}`);
+      const res  = await fetch(`/api/scanner/proximity?threshold=${threshold}&min_age_days=${minAge}&tickers=${watchlistTickers.join(",")}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error al escanear");
       setAlerts(json.alerts ?? []);
-      setAnalyzedSet(new Set<string>(json.analyzed_tickers ?? []));
-      setMeta({
-        tickers_scanned: json.tickers_scanned,
-        prices_fetched:  json.prices_fetched,
-        threshold_usd:   json.threshold_usd,
-        min_age_days:    json.min_age_days,
-        cutoff_date:     json.cutoff_date,
-      });
+      setMeta({ tickers_scanned: json.tickers_scanned, prices_fetched: json.prices_fetched, threshold_usd: json.threshold_usd, min_age_days: json.min_age_days, cutoff_date: json.cutoff_date });
       setLastScan(new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }));
     } catch (e: any) { setError(e.message); }
     setLoading(false);
   }, [threshold, minAge]);
 
-  useEffect(() => { runScan(); }, []);
+  // ── Batch analyzer ──────────────────────────────────────────────────────────
+  const runBatch = useCallback(async () => {
+    const pending = DEFAULT_WATCHLIST.map((w) => w.ticker).filter((t) => !analyzedSet.has(t));
+    if (!pending.length) return;
+
+    stopRef.current = false;
+    setBatch({ running: true, total: pending.length, done: 0, current: "", errors: [], completed: [] });
+
+    const errors:    string[] = [];
+    const completed: string[] = [];
+
+    for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+      if (stopRef.current) break;
+
+      const lote = pending.slice(i, i + BATCH_SIZE);
+
+      await Promise.all(lote.map(async (ticker) => {
+        setBatch((prev) => ({ ...prev, current: ticker }));
+        try {
+          const res = await fetch(`/api/analysis7?ticker=${ticker}`);
+          if (res.ok) {
+            completed.push(ticker);
+            setAnalyzedSet((prev) => new Set([...prev, ticker]));
+          } else {
+            const j = await res.json().catch(() => ({}));
+            errors.push(`${ticker}: ${j.error ?? res.status}`);
+          }
+        } catch (e: any) {
+          errors.push(`${ticker}: ${e.message}`);
+        }
+        setBatch((prev) => ({ ...prev, done: prev.done + 1, completed: [...completed], errors: [...errors] }));
+      }));
+
+      if (i + BATCH_SIZE < pending.length && !stopRef.current) {
+        await new Promise((r) => setTimeout(r, BATCH_DELAY));
+      }
+    }
+
+    setBatch((prev) => ({ ...prev, running: false, current: "" }));
+
+    // Refrescar scanner después del batch
+    if (completed.length > 0) await runScan();
+  }, [analyzedSet, runScan]);
+
+  const stopBatch = () => { stopRef.current = true; };
+
+  useEffect(() => {
+    loadStatus().then(() => runScan());
+  }, []);
+
+  const pendingList  = DEFAULT_WATCHLIST.filter((w) => !analyzedSet.has(w.ticker));
+  const pendingCount = pendingList.length;
 
   const filtered = alerts.filter((a) => {
     if (typeFilter !== "ALL" && a.level_type !== typeFilter) return false;
     if (moduleFilter !== "ALL" && a.module !== moduleFilter) return false;
-    if (listFilter !== 0) {
-      const inList = DEFAULT_WATCHLIST.find((w) => w.ticker === a.ticker)?.list === listFilter;
-      if (!inList) return false;
-    }
+    if (listFilter !== 0 && DEFAULT_WATCHLIST.find((w) => w.ticker === a.ticker)?.list !== listFilter) return false;
     return true;
   });
 
   const criticalCount = alerts.filter((a) => a.distance_usd <= 1).length;
   const warningCount  = alerts.filter((a) => a.distance_usd > 1 && a.distance_usd <= 2.5).length;
-  const pendingCount  = DEFAULT_WATCHLIST.filter((w) => !analyzedSet.has(w.ticker)).length;
+  const batchPct      = batch.total > 0 ? Math.round((batch.done / batch.total) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -120,6 +184,64 @@ export default function AlertasPage() {
           <p className="text-xs text-muted tracking-widest">37 tickers · 3 listas · niveles S/R confirmados · distancia configurable</p>
         </div>
 
+        {/* Batch Analyzer */}
+        <div className="bg-card border border-border p-4 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-[9px] text-muted tracking-widest font-bold">ANALIZADOR BATCH · M7</p>
+              <p className="text-[10px] text-muted mt-0.5">
+                {analyzedSet.size}/37 tickers analizados
+                {pendingCount > 0 && <span className="text-warning ml-2">· {pendingCount} pendientes</span>}
+                {pendingCount === 0 && <span className="text-accent ml-2">· todos completos</span>}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {!batch.running ? (
+                <button
+                  onClick={runBatch}
+                  disabled={pendingCount === 0}
+                  className="bg-accent text-white px-5 py-2 text-xs font-bold tracking-widest hover:opacity-80 disabled:opacity-30 transition-opacity"
+                >
+                  ANALIZAR PENDIENTES ({pendingCount})
+                </button>
+              ) : (
+                <button onClick={stopBatch} className="border border-danger text-danger px-5 py-2 text-xs font-bold tracking-widest hover:bg-danger/10 transition-colors">
+                  DETENER
+                </button>
+              )}
+              <button onClick={loadStatus} disabled={batch.running} className="border border-border text-muted px-4 py-2 text-xs tracking-widest hover:text-text hover:border-accent transition-colors disabled:opacity-30">
+                REFRESCAR
+              </button>
+            </div>
+          </div>
+
+          {/* Barra de progreso */}
+          {(batch.running || batch.done > 0) && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-[10px] text-muted">
+                <span>{batch.running ? `Analizando ${batch.current}...` : "Completado"}</span>
+                <span className="font-mono font-bold text-text">{batch.done}/{batch.total} · {batchPct}%</span>
+              </div>
+              <div className="h-2 bg-surface rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ width: `${batchPct}%`, backgroundColor: batch.running ? "#6366f1" : "#22c55e" }}
+                />
+              </div>
+              {batch.completed.length > 0 && (
+                <p className="text-[10px] text-accent">
+                  Completados: {batch.completed.join(", ")}
+                </p>
+              )}
+              {batch.errors.length > 0 && (
+                <div className="text-[10px] text-danger space-y-0.5">
+                  {batch.errors.map((e, i) => <p key={i}>✗ {e}</p>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Watchlist visual */}
         <div className="space-y-3">
           {LISTS.map(({ id, tickers }) => (
@@ -134,13 +256,16 @@ export default function AlertasPage() {
                 {tickers.map((w: WatchlistTicker) => {
                   const hasData  = analyzedSet.has(w.ticker);
                   const hasAlert = alerts.some((a) => a.ticker === w.ticker);
+                  const isRunning = batch.current === w.ticker;
                   return (
                     <a
                       key={w.ticker}
                       href={`/?ticker=${w.ticker}`}
                       title={w.label}
-                      className={`px-2.5 py-1 text-[10px] font-bold tracking-widest border transition-colors ${
-                        hasAlert
+                      className={`px-2.5 py-1 text-[10px] font-bold tracking-widest border transition-all ${
+                        isRunning
+                          ? "border-indigo-400 text-indigo-400 animate-pulse"
+                          : hasAlert
                           ? "bg-warning/20 border-warning text-warning"
                           : hasData
                           ? "border-border text-text hover:border-accent hover:text-accent"
@@ -149,6 +274,7 @@ export default function AlertasPage() {
                     >
                       {w.ticker}
                       {hasAlert && <span className="ml-1 text-[8px]">●</span>}
+                      {isRunning && <span className="ml-1 text-[8px]">⟳</span>}
                     </a>
                   );
                 })}
@@ -157,14 +283,15 @@ export default function AlertasPage() {
           ))}
         </div>
 
-        {pendingCount > 0 && (
+        {pendingCount > 0 && !batch.running && (
           <p className="text-[10px] text-muted tracking-widest">
-            <span className="text-warning font-bold">{pendingCount} tickers</span> sin analisis M7 — aparecen en gris. Analiza en{" "}
-            <a href="/" className="text-accent underline">M7</a> para incluirlos en el scanner.
+            <span className="text-warning font-bold">{pendingCount} tickers</span> sin analisis — aparecen en gris.
+            Usa el boton <span className="text-accent font-bold">ANALIZAR PENDIENTES</span> para poblarlos automaticamente, o analiza uno por uno en{" "}
+            <a href="/" className="text-accent underline">M7</a>.
           </p>
         )}
 
-        {/* Controles */}
+        {/* Controles del scanner */}
         <div className="bg-card border border-border p-4 flex flex-wrap gap-6 items-end">
           <div className="space-y-1.5">
             <p className="text-[9px] text-muted tracking-widest font-bold">UMBRAL DE DISTANCIA ($)</p>
@@ -188,7 +315,7 @@ export default function AlertasPage() {
             </div>
           </div>
 
-          <button onClick={runScan} disabled={loading} className="bg-accent text-white px-6 py-2.5 text-sm font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity">
+          <button onClick={runScan} disabled={loading || batch.running} className="bg-accent text-white px-6 py-2.5 text-sm font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity">
             {loading ? "ESCANEANDO..." : "ESCANEAR"}
           </button>
 
@@ -273,12 +400,12 @@ export default function AlertasPage() {
               </thead>
               <tbody>
                 {filtered.map((a, i) => {
-                  const wl       = DEFAULT_WATCHLIST.find((w) => w.ticker === a.ticker);
-                  const listId   = wl?.list ?? 0;
+                  const wl        = DEFAULT_WATCHLIST.find((w) => w.ticker === a.ticker);
+                  const listId    = wl?.list ?? 0;
                   const listColor = LIST_COLORS[listId] ?? "#6b7280";
-                  const isCrit   = a.distance_usd <= 1;
-                  const isWarn   = a.distance_usd > 1 && a.distance_usd <= 2.5;
-                  const rowBg    = isCrit ? "border-danger/30 bg-danger/5" : isWarn ? "border-warning/20 bg-warning/5" : "";
+                  const isCrit    = a.distance_usd <= 1;
+                  const isWarn    = a.distance_usd > 1 && a.distance_usd <= 2.5;
+                  const rowBg     = isCrit ? "border-danger/30 bg-danger/5" : isWarn ? "border-warning/20 bg-warning/5" : "";
                   return (
                     <tr key={i} className={`border-b border-border hover:bg-surface transition-colors ${rowBg}`}>
                       <td className="px-3 py-2.5">
@@ -293,9 +420,7 @@ export default function AlertasPage() {
                         {a.level_type === "support" ? "SUP" : "RES"}
                       </td>
                       <td className="px-3 py-2.5 font-bold text-muted">{a.module}</td>
-                      <td className="px-3 py-2.5">
-                        <DistanceBar usd={a.distance_usd} threshold={threshold} />
-                      </td>
+                      <td className="px-3 py-2.5"><DistanceBar usd={a.distance_usd} threshold={threshold} /></td>
                       <td className={`px-3 py-2.5 font-mono text-[10px] ${a.distance_pct <= 0.5 ? "text-danger font-bold" : "text-muted"}`}>
                         {a.distance_pct.toFixed(2)}%
                       </td>
@@ -318,6 +443,7 @@ export default function AlertasPage() {
             </div>
           )
         )}
+
       </div>
     </div>
   );
