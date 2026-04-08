@@ -68,7 +68,7 @@ const BATCH_SIZE  = 3;
 const BATCH_DELAY = 1200; // ms entre lotes
 
 export default function AlertasPage() {
-  const [minAge,       setMinAge]       = useState(30);
+  const [minAge,       setMinAge]       = useState(1);
   const [loading,      setLoading]      = useState(false);
   const [alerts,       setAlerts]       = useState<ProximityAlert[]>([]);
   const [meta,         setMeta]         = useState<ScanMeta | null>(null);
@@ -390,7 +390,7 @@ export default function AlertasPage() {
           <div className="space-y-1.5">
             <p className="text-[9px] text-muted tracking-widest font-bold">ANTIGUEDAD MINIMA DEL NIVEL</p>
             <div className="flex items-center gap-2 flex-wrap">
-              {[14, 30, 45, 60, 90].map((v) => (
+              {[1, 7, 14, 30, 45, 60, 90].map((v) => (
                 <button key={v} onClick={() => setMinAge(v)} className={`text-xs px-3 py-1.5 border tracking-widest transition-colors ${minAge === v ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-text"}`}>
                   {v}d
                 </button>
@@ -495,7 +495,7 @@ export default function AlertasPage() {
                   <th className="px-3 py-3">DISTANCIA</th>
                   <th className="px-3 py-3">ZONA ATR</th>
                   <th className="px-3 py-3">ATR14</th>
-                  <th className="px-3 py-3">EDAD NIVEL</th>
+                  <th className="px-3 py-3">EDAD · CONFIANZA</th>
                   <th className="px-3 py-3">REGIMEN</th>
                   <th className="px-3 py-3">VEREDICTO M7</th>
                 </tr>
@@ -525,8 +525,16 @@ export default function AlertasPage() {
                       <td className="px-3 py-2.5"><DistanceBar distPct={a.distance_pct} threshPct={a.threshold_pct} /></td>
                       <td className="px-3 py-2.5 font-mono text-muted text-[10px]">{a.threshold_pct.toFixed(2)}%</td>
                       <td className="px-3 py-2.5 font-mono text-muted text-[10px]">{a.atr14 != null ? `$${a.atr14.toFixed(2)}` : <span className="italic opacity-50">sin data</span>}</td>
-                      <td className="px-3 py-2.5 text-muted">
-                        <span className={a.level_age_days >= 60 ? "text-accent font-bold" : ""}>{a.level_age_days}d</span>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted text-[10px]">{a.level_age_days}d</span>
+                          {a.level_age_days < 7
+                            ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-warning/20 text-warning tracking-widest">NUEVO</span>
+                            : a.level_age_days < 30
+                            ? <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 tracking-widest">RECIENTE</span>
+                            : <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-accent/20 text-accent tracking-widest">CONFIRMADO</span>
+                          }
+                        </div>
                       </td>
                       <td className="px-3 py-2.5 text-muted text-[10px]">{a.regime ?? "—"}</td>
                       <td className="px-3 py-2.5 text-muted text-[10px] max-w-[150px] truncate">{a.m7_verdict ?? "—"}</td>
