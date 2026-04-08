@@ -10,7 +10,7 @@ const HEADERS = {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const tickers = (searchParams.get("tickers") ?? "SPY").split(",").map((t) => t.trim().toUpperCase()).slice(0, 20);
+    const tickers = (searchParams.get("tickers") ?? "SPY").split(",").map((t) => t.trim().toUpperCase()).slice(0, 100);
     const symbols = tickers.join(",");
 
     const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent`;
