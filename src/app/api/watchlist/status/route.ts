@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     .select("ticker")
     .in("ticker", tickers);
 
-  const analyzed = [...new Set((data ?? []).map((r) => r.ticker))];
+  const analyzed = Array.from(new Set((data ?? []).map((r) => r.ticker)));
 
   return NextResponse.json({ analyzed, total: tickers.length });
 }
