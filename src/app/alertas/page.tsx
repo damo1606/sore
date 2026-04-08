@@ -119,7 +119,7 @@ export default function AlertasPage() {
           const res = await fetch(`/api/analysis7?ticker=${ticker}`);
           if (res.ok) {
             completed.push(ticker);
-            setAnalyzedSet((prev) => new Set([...prev, ticker]));
+            setAnalyzedSet((prev) => new Set(Array.from(prev).concat(ticker)));
           } else {
             const j = await res.json().catch(() => ({}));
             errors.push(`${ticker}: ${j.error ?? res.status}`);
