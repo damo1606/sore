@@ -1,0 +1,76 @@
+name: SORE — Análisis Nocturno
+
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'   # 10:00 UTC = 6:00 AM EST, lun-vie
+  workflow_dispatch:           # ejecutable manualmente desde GitHub Actions
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Analizar 37 tickers (3 en paralelo)
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          TICKERS=(
+            QQQ XLK XLY XLC XLF XLE XLI XLB XLV XLP TLT GLD HYG
+            NVDA AAPL TSLA AMZN META MSFT AMD GOOGL NFLX PLTR COIN MSTR
+            SPY IWM EEM JPM GS BAC XOM LLY UNH V COST KO
+          )
+          BATCH=3
+          OK=0
+          FAILED=()
+
+          echo "════════════════════════════════════════"
+          echo "SORE — Análisis nocturno · $(date -u '+%Y-%m-%d %H:%M UTC')"
+          echo "Total tickers: ${#TICKERS[@]}"
+          echo "════════════════════════════════════════"
+
+          for ((i=0; i<${#TICKERS[@]}; i+=BATCH)); do
+            CHUNK=("${TICKERS[@]:$i:$BATCH}")
+            echo ""
+            echo "▶ Lote $((i/BATCH+1)): ${CHUNK[*]}"
+            PIDS=()
+
+            for ticker in "${CHUNK[@]}"; do
+              (
+                HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+                  --max-time 55 \
+                  "${APP_URL}/api/analysis7?ticker=${ticker}")
+                if [ "$HTTP" = "200" ]; then
+                  echo "  ✓ $ticker"
+                else
+                  echo "  ✗ $ticker (HTTP $HTTP)"
+                  exit 1
+                fi
+              ) &
+              PIDS+=($!)
+            done
+
+            for j in "${!PIDS[@]}"; do
+              if wait "${PIDS[$j]}"; then
+                OK=$((OK+1))
+              else
+                FAILED+=("${CHUNK[$j]}")
+              fi
+            done
+
+            # Pausa entre lotes (excepto el último)
+            if [ $((i+BATCH)) -lt ${#TICKERS[@]} ]; then
+              sleep 1.2
+            fi
+          done
+
+          echo ""
+          echo "════════════════════════════════════════"
+          echo "✓ Completados: $OK / ${#TICKERS[@]}"
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo "✗ Fallidos: ${FAILED[*]}"
+            exit 1
+          else
+            echo "✓ Todos los tickers procesados correctamente"
+          fi
+          echo "════════════════════════════════════════"
