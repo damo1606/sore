@@ -3,6 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { DEFAULT_WATCHLIST, LISTA_1, LISTA_2, LISTA_3, LIST_LABELS, LIST_COLORS, type WatchlistTicker } from "@/lib/watchlist";
 
+interface LivePrice {
+  price:     number;
+  change:    number;
+  changePct: number;
+}
+
+const REFRESH_INTERVAL = 30000; // 30 segundos
+
 interface ProximityAlert {
   ticker:         string;
   spot_current:   number;
@@ -69,9 +77,29 @@ export default function AlertasPage() {
   const [listFilter,   setListFilter]   = useState<0 | 1 | 2 | 3>(0);
   const [analyzedSet,  setAnalyzedSet]  = useState<Set<string>>(new Set());
   const [batch,        setBatch]        = useState<BatchState>({ running: false, total: 0, done: 0, current: "", errors: [], completed: [] });
-  const stopRef = useRef(false);
+  const [livePrices,   setLivePrices]   = useState<Record<string, LivePrice>>({});
+  const [pricesAge,    setPricesAge]    = useState<string | null>(null);
+  const [pricesLoading, setPricesLoading] = useState(false);
+  const stopRef     = useRef(false);
+  const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const watchlistTickers = DEFAULT_WATCHLIST.map((w) => w.ticker);
+
+  // ── Precios en vivo (30s refresh) ──────────────────────────────────────────
+  const fetchLivePrices = useCallback(async () => {
+    setPricesLoading(true);
+    try {
+      // Yahoo Finance acepta hasta 100 símbolos por llamada
+      const symbols = watchlistTickers.join(",");
+      const res  = await fetch(`/api/scanner/prices?tickers=${symbols}`);
+      const json = await res.json();
+      if (res.ok && json.prices) {
+        setLivePrices(json.prices);
+        setPricesAge(new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      }
+    } catch {}
+    setPricesLoading(false);
+  }, []);
 
   // ── Cargar estado de análisis (qué tickers ya tienen snapshot) ──────────────
   const loadStatus = useCallback(async () => {
@@ -145,6 +173,10 @@ export default function AlertasPage() {
 
   useEffect(() => {
     loadStatus().then(() => runScan());
+    fetchLivePrices();
+    // Auto-refresh cada 30s
+    refreshRef.current = setInterval(fetchLivePrices, REFRESH_INTERVAL);
+    return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
   }, []);
 
   const pendingList  = DEFAULT_WATCHLIST.filter((w) => !analyzedSet.has(w.ticker));
@@ -175,6 +207,35 @@ export default function AlertasPage() {
           CERRAR SESION
         </button>
       </header>
+
+      {/* Strip de precios en vivo */}
+      <div className="border-b border-border bg-surface overflow-hidden">
+        <div className="flex items-center gap-0 overflow-x-auto scrollbar-hide px-2 py-1.5">
+          {pricesAge && (
+            <span className="text-[9px] text-muted tracking-widest shrink-0 mr-3 border-r border-border pr-3">
+              {pricesLoading ? "↻" : "●"} {pricesAge}
+            </span>
+          )}
+          {DEFAULT_WATCHLIST.map((w) => {
+            const p = livePrices[w.ticker];
+            if (!p) return (
+              <div key={w.ticker} className="shrink-0 px-3 py-0.5 border-r border-border/30">
+                <span className="text-[10px] font-bold text-muted/40 tracking-widest">{w.ticker}</span>
+              </div>
+            );
+            const up = p.change >= 0;
+            return (
+              <div key={w.ticker} className="shrink-0 px-3 py-0.5 border-r border-border/30 flex items-center gap-1.5">
+                <span className="text-[10px] font-bold tracking-widest text-muted">{w.ticker}</span>
+                <span className="text-[11px] font-mono font-bold text-text">${p.price.toFixed(2)}</span>
+                <span className={`text-[9px] font-mono ${up ? "text-accent" : "text-danger"}`}>
+                  {up ? "▲" : "▼"}{Math.abs(p.changePct).toFixed(2)}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
