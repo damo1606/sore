@@ -125,7 +125,7 @@ export default function AlertasPage() {
       setLastScan(new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }));
     } catch (e: any) { setError(e.message); }
     setLoading(false);
-  }, [threshold, minAge]);
+  }, [minAge]);
 
   // ── Batch analyzer ──────────────────────────────────────────────────────────
   const runBatch = useCallback(async () => {
