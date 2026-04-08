@@ -68,7 +68,7 @@ const BATCH_SIZE  = 3;
 const BATCH_DELAY = 1200; // ms entre lotes
 
 export default function AlertasPage() {
-  const [minAge,       setMinAge]       = useState(1);
+  const [minAge,       setMinAge]       = useState(0);
   const [loading,      setLoading]      = useState(false);
   const [alerts,       setAlerts]       = useState<ProximityAlert[]>([]);
   const [meta,         setMeta]         = useState<ScanMeta | null>(null);
@@ -390,9 +390,9 @@ export default function AlertasPage() {
           <div className="space-y-1.5">
             <p className="text-[9px] text-muted tracking-widest font-bold">ANTIGUEDAD MINIMA DEL NIVEL</p>
             <div className="flex items-center gap-2 flex-wrap">
-              {[1, 7, 14, 30, 45, 60, 90].map((v) => (
+              {[0, 1, 7, 14, 30, 45, 60, 90].map((v) => (
                 <button key={v} onClick={() => setMinAge(v)} className={`text-xs px-3 py-1.5 border tracking-widest transition-colors ${minAge === v ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-text"}`}>
-                  {v}d
+                  {v === 0 ? "HOY" : `${v}d`}
                 </button>
               ))}
             </div>

@@ -64,7 +64,7 @@ function extractLevels(snap: any): { module: string; level_type: "support" | "re
 }
 
 export async function GET(req: NextRequest) {
-  const minAgeDays    = parseInt(req.nextUrl.searchParams.get("min_age_days") ?? "1", 10);
+  const minAgeDays    = parseInt(req.nextUrl.searchParams.get("min_age_days") ?? "0", 10);
   const tickersParam  = req.nextUrl.searchParams.get("tickers");
   const filterTickers = tickersParam ? tickersParam.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean) : null;
 
