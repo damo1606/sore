@@ -211,8 +211,8 @@ export default function AlertasPage() {
         </button>
       </header>
 
-      {/* Strip de precios en vivo */}
-      <div className="border-b border-border bg-surface overflow-hidden">
+      {/* Strip de precios en vivo — tooltip explicativo */}
+      <div title="Precios de los 37 tickers actualizados cada 30 segundos desde Yahoo Finance. Verde ▲ = sube hoy, Rojo ▼ = baja hoy. Delay aproximado de 15 minutos (API gratuita). Scroll horizontal para ver todos." className="border-b border-border bg-surface overflow-hidden cursor-help">
         <div className="flex items-center gap-0 overflow-x-auto scrollbar-hide px-2 py-1.5">
           {pricesAge && (
             <span className="text-[9px] text-muted tracking-widest shrink-0 mr-3 border-r border-border pr-3">
@@ -245,11 +245,29 @@ export default function AlertasPage() {
         {/* Título */}
         <div>
           <h1 className="text-2xl font-black tracking-[0.3em] text-accent mb-1">SCANNER DE PROXIMIDAD</h1>
-          <p className="text-xs text-muted tracking-widest">37 tickers · 3 listas · niveles S/R confirmados · distancia configurable</p>
+          <p className="text-xs text-muted tracking-widest">37 tickers · 3 listas · niveles S/R confirmados · umbral dinamico por ATR</p>
         </div>
 
         {/* Batch Analyzer */}
         <div className="bg-card border border-border p-4 space-y-3">
+          {/* Resumen explicativo */}
+          <div className="border-l-2 border-accent/40 pl-3 space-y-0.5 mb-1">
+            <p className="text-[10px] text-muted leading-relaxed">
+              <span className="text-text font-bold">Que hace:</span> Corre el analisis M7 completo para cada ticker pendiente de forma automatica.
+            </p>
+            <p className="text-[10px] text-muted leading-relaxed">
+              <span className="text-text font-bold">Por que importa:</span> Sin analisis previo no hay niveles S/R guardados — el scanner no tiene datos que comparar.
+            </p>
+            <p className="text-[10px] text-muted leading-relaxed">
+              <span className="text-text font-bold">Como funciona:</span> Procesa 3 tickers a la vez con pausa de 1.2s entre lotes para no saturar Yahoo Finance.
+            </p>
+            <p className="text-[10px] text-muted leading-relaxed">
+              <span className="text-text font-bold">Colores:</span> Gris = sin analisis · Blanco = analizado · Naranja con punto = tiene alerta activa · Parpadeando = en proceso ahora.
+            </p>
+            <p className="text-[10px] text-muted leading-relaxed">
+              <span className="text-text font-bold">Cuando repetir:</span> Semanalmente o antes de cada sesion para que los niveles reflejen el GEX actual del mercado.
+            </p>
+          </div>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <p className="text-[9px] text-muted tracking-widest font-bold">ANALIZADOR BATCH · M7</p>
@@ -308,6 +326,13 @@ export default function AlertasPage() {
 
         {/* Watchlist visual */}
         <div className="space-y-3">
+          <div className="border-l-2 border-indigo-500/40 pl-3 space-y-0.5">
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">Watchlist de 37 tickers:</span> organizados en 3 listas segun su perfil de negociacion.</p>
+            <p className="text-[10px] text-muted"><span className="text-indigo-400 font-bold">L1 Rotacion:</span> 13 ETFs sectoriales — sirven para ver hacia donde fluye el capital institucional entre sectores.</p>
+            <p className="text-[10px] text-muted"><span className="text-warning font-bold">L2 Prima:</span> 12 acciones con mayor prima de opciones — maxima liquidez para estrategias de volatilidad.</p>
+            <p className="text-[10px] text-muted"><span className="text-accent font-bold">L3 Liquidez:</span> 12 tickers con spread mas ajustado — ETFs base + acciones con mayor profundidad de libro.</p>
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">Click en cualquier ticker</span> para ir directo al analisis M7. Naranja con punto = precio cerca de un nivel confirmado.</p>
+          </div>
           {LISTS.map(({ id, tickers }) => (
             <div key={id} className="bg-card border border-border p-4 space-y-2">
               <div className="flex items-center gap-2">
@@ -386,6 +411,14 @@ export default function AlertasPage() {
 
         {/* Resumen */}
         {meta && (
+          <div className="space-y-3">
+          <div className="border-l-2 border-warning/40 pl-3 space-y-0.5">
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">Tickers con datos:</span> cuantos de los 37 tienen snapshots de mas de {meta.min_age_days} dias — solo estos se incluyen en el scan.</p>
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">Alertas totales:</span> niveles donde el precio actual entro dentro de la zona ATR dinamica de ese ticker.</p>
+            <p className="text-[10px] text-muted"><span className="text-danger font-bold">Criticas:</span> precio dentro del 25% interior de la zona — puede testear el nivel en horas o minutos.</p>
+            <p className="text-[10px] text-muted"><span className="text-warning font-bold">Advertencia:</span> precio entre el 25% y 60% de la zona — en orbita del nivel, atencion en la sesion.</p>
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">Verde:</span> precio detectado en la zona pero con margen — nivel relevante pero sin urgencia inmediata.</p>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-card border border-border p-4 space-y-1">
               <p className="text-[9px] text-muted tracking-widest font-bold">TICKERS CON DATOS</p>
@@ -398,15 +431,16 @@ export default function AlertasPage() {
               <p className="text-[10px] text-muted">umbral dinamico ATR</p>
             </div>
             <div className="bg-card border border-border p-4 space-y-1">
-              <p className="text-[9px] text-muted tracking-widest font-bold">CRITICAS ≤$1</p>
+              <p className="text-[9px] text-muted tracking-widest font-bold">CRITICAS</p>
               <p className={`text-2xl font-black font-mono ${criticalCount > 0 ? "text-danger" : "text-muted"}`}>{criticalCount}</p>
-              <p className="text-[10px] text-muted">riesgo inmediato</p>
+              <p className="text-[10px] text-muted">dentro del 25% de la zona ATR</p>
             </div>
             <div className="bg-card border border-border p-4 space-y-1">
-              <p className="text-[9px] text-muted tracking-widest font-bold">ADVERTENCIA $1–$2.50</p>
+              <p className="text-[9px] text-muted tracking-widest font-bold">ADVERTENCIA</p>
               <p className={`text-2xl font-black font-mono ${warningCount > 0 ? "text-warning" : "text-muted"}`}>{warningCount}</p>
-              <p className="text-[10px] text-muted">zona de atencion</p>
+              <p className="text-[10px] text-muted">entre 25% y 60% de la zona</p>
             </div>
+          </div>
           </div>
         )}
 
@@ -438,6 +472,15 @@ export default function AlertasPage() {
         )}
 
         {/* Tabla */}
+        {filtered.length > 0 && (
+          <div className="border-l-2 border-accent/40 pl-3 space-y-0.5">
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">Tabla de alertas:</span> cada fila es un nivel S/R confirmado que el precio actual esta cerca de tocar.</p>
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">DISTANCIA:</span> barra que muestra que tan dentro de la zona ATR esta el precio — llena y roja significa que casi toca el nivel.</p>
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">ZONA ATR:</span> porcentaje que define el radio de alerta para ese ticker especifico — calculado con su volatilidad real.</p>
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">EDAD NIVEL:</span> hace cuantos dias se identifico ese strike — niveles de mas de 60 dias (en azul) son los mas confirmados.</p>
+            <p className="text-[10px] text-muted"><span className="text-text font-bold">VEREDICTO M7:</span> la direccion que el modelo preveia cuando se identifico el nivel — ayuda a saber si es soporte o resistencia clave.</p>
+          </div>
+        )}
         {filtered.length > 0 ? (
           <div className="bg-card border border-border overflow-x-auto">
             <table className="w-full text-xs">
