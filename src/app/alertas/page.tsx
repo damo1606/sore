@@ -19,6 +19,8 @@ interface ProximityAlert {
   module:         string;
   distance_usd:   number;
   distance_pct:   number;
+  threshold_pct:  number;
+  atr14:          number | null;
   level_age_days: number;
   regime:         string | null;
   m7_verdict:     string | null;
@@ -28,7 +30,6 @@ interface ProximityAlert {
 interface ScanMeta {
   tickers_scanned: number;
   prices_fetched:  number;
-  threshold_usd:   number;
   min_age_days:    number;
   cutoff_date:     string;
 }
@@ -42,15 +43,17 @@ interface BatchState {
   completed: string[];
 }
 
-function DistanceBar({ usd, threshold }: { usd: number; threshold: number }) {
-  const pct   = Math.min(100, ((threshold - usd) / threshold) * 100);
-  const color = usd <= 1 ? "#ef4444" : usd <= 2.5 ? "#f59e0b" : "#22c55e";
+// distPct = distancia actual en %, threshPct = zona dinámica en %
+function DistanceBar({ distPct, threshPct }: { distPct: number; threshPct: number }) {
+  const fill  = Math.min(100, (distPct / threshPct) * 100);
+  const ratio = distPct / threshPct;
+  const color = ratio < 0.25 ? "#ef4444" : ratio < 0.6 ? "#f59e0b" : "#22c55e";
   return (
     <div className="flex items-center gap-2">
       <div className="w-20 h-1.5 bg-surface rounded-full overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+        <div className="h-full rounded-full" style={{ width: `${fill}%`, backgroundColor: color }} />
       </div>
-      <span className="font-mono font-bold text-[11px]" style={{ color }}>${usd.toFixed(2)}</span>
+      <span className="font-mono font-bold text-[11px]" style={{ color }}>{distPct.toFixed(2)}%</span>
     </div>
   );
 }
@@ -65,7 +68,6 @@ const BATCH_SIZE  = 3;
 const BATCH_DELAY = 1200; // ms entre lotes
 
 export default function AlertasPage() {
-  const [threshold,    setThreshold]    = useState(5);
   const [minAge,       setMinAge]       = useState(30);
   const [loading,      setLoading]      = useState(false);
   const [alerts,       setAlerts]       = useState<ProximityAlert[]>([]);
@@ -115,11 +117,11 @@ export default function AlertasPage() {
     setLoading(true);
     setError("");
     try {
-      const res  = await fetch(`/api/scanner/proximity?threshold=${threshold}&min_age_days=${minAge}&tickers=${watchlistTickers.join(",")}`);
+      const res  = await fetch(`/api/scanner/proximity?min_age_days=${minAge}&tickers=${watchlistTickers.join(",")}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error al escanear");
       setAlerts(json.alerts ?? []);
-      setMeta({ tickers_scanned: json.tickers_scanned, prices_fetched: json.prices_fetched, threshold_usd: json.threshold_usd, min_age_days: json.min_age_days, cutoff_date: json.cutoff_date });
+      setMeta({ tickers_scanned: json.tickers_scanned, prices_fetched: json.prices_fetched, min_age_days: json.min_age_days, cutoff_date: json.cutoff_date });
       setLastScan(new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }));
     } catch (e: any) { setError(e.message); }
     setLoading(false);
@@ -189,8 +191,9 @@ export default function AlertasPage() {
     return true;
   });
 
-  const criticalCount = alerts.filter((a) => a.distance_usd <= 1).length;
-  const warningCount  = alerts.filter((a) => a.distance_usd > 1 && a.distance_usd <= 2.5).length;
+  // Crítica: distancia < 25% del threshold dinámico; advertencia: < 60%
+  const criticalCount = alerts.filter((a) => a.distance_pct < a.threshold_pct * 0.25).length;
+  const warningCount  = alerts.filter((a) => a.distance_pct >= a.threshold_pct * 0.25 && a.distance_pct < a.threshold_pct * 0.6).length;
   const batchPct      = batch.total > 0 ? Math.round((batch.done / batch.total) * 100) : 0;
 
   return (
@@ -355,14 +358,8 @@ export default function AlertasPage() {
         {/* Controles del scanner */}
         <div className="bg-card border border-border p-4 flex flex-wrap gap-6 items-end">
           <div className="space-y-1.5">
-            <p className="text-[9px] text-muted tracking-widest font-bold">UMBRAL DE DISTANCIA ($)</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              {[1, 2, 3, 5, 10, 15].map((v) => (
-                <button key={v} onClick={() => setThreshold(v)} className={`text-xs px-3 py-1.5 border tracking-widest transition-colors font-mono ${threshold === v ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-text"}`}>
-                  ${v}
-                </button>
-              ))}
-            </div>
+            <p className="text-[9px] text-muted tracking-widest font-bold">UMBRAL DINAMICO · max(1.5%, 0.5×ATR/spot)</p>
+            <p className="text-[10px] text-muted">Cada ticker tiene su propia zona segun su volatilidad. KO ~$0.90, NVDA ~$17, TSLA ~$9</p>
           </div>
 
           <div className="space-y-1.5">
@@ -381,7 +378,7 @@ export default function AlertasPage() {
           </button>
 
           {lastScan && !loading && (
-            <p className="text-[10px] text-muted self-center">ultima actualizacion: {lastScan}</p>
+            <p className="text-[10px] text-muted self-center">ultimo scan: {lastScan}</p>
           )}
         </div>
 
@@ -398,7 +395,7 @@ export default function AlertasPage() {
             <div className="bg-card border border-border p-4 space-y-1">
               <p className="text-[9px] text-muted tracking-widest font-bold">ALERTAS TOTALES</p>
               <p className={`text-2xl font-black font-mono ${alerts.length > 0 ? "text-warning" : "text-muted"}`}>{alerts.length}</p>
-              <p className="text-[10px] text-muted">dentro de ${meta.threshold_usd}</p>
+              <p className="text-[10px] text-muted">umbral dinamico ATR</p>
             </div>
             <div className="bg-card border border-border p-4 space-y-1">
               <p className="text-[9px] text-muted tracking-widest font-bold">CRITICAS ≤$1</p>
@@ -453,7 +450,8 @@ export default function AlertasPage() {
                   <th className="px-3 py-3">TIPO</th>
                   <th className="px-3 py-3">MOD</th>
                   <th className="px-3 py-3">DISTANCIA</th>
-                  <th className="px-3 py-3">DIST %</th>
+                  <th className="px-3 py-3">ZONA ATR</th>
+                  <th className="px-3 py-3">ATR14</th>
                   <th className="px-3 py-3">EDAD NIVEL</th>
                   <th className="px-3 py-3">REGIMEN</th>
                   <th className="px-3 py-3">VEREDICTO M7</th>
@@ -481,10 +479,9 @@ export default function AlertasPage() {
                         {a.level_type === "support" ? "SUP" : "RES"}
                       </td>
                       <td className="px-3 py-2.5 font-bold text-muted">{a.module}</td>
-                      <td className="px-3 py-2.5"><DistanceBar usd={a.distance_usd} threshold={threshold} /></td>
-                      <td className={`px-3 py-2.5 font-mono text-[10px] ${a.distance_pct <= 0.5 ? "text-danger font-bold" : "text-muted"}`}>
-                        {a.distance_pct.toFixed(2)}%
-                      </td>
+                      <td className="px-3 py-2.5"><DistanceBar distPct={a.distance_pct} threshPct={a.threshold_pct} /></td>
+                      <td className="px-3 py-2.5 font-mono text-muted text-[10px]">{a.threshold_pct.toFixed(2)}%</td>
+                      <td className="px-3 py-2.5 font-mono text-muted text-[10px]">{a.atr14 != null ? `$${a.atr14.toFixed(2)}` : <span className="italic opacity-50">sin data</span>}</td>
                       <td className="px-3 py-2.5 text-muted">
                         <span className={a.level_age_days >= 60 ? "text-accent font-bold" : ""}>{a.level_age_days}d</span>
                       </td>
@@ -500,7 +497,7 @@ export default function AlertasPage() {
           !loading && meta && (
             <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted">
               <p className="text-sm tracking-widest font-bold">SIN ALERTAS</p>
-              <p className="text-xs opacity-60">Ningun ticker dentro de ${threshold} de un nivel confirmado hace {minAge}+ dias</p>
+              <p className="text-xs opacity-60">Ningun ticker dentro de su zona ATR dinamica · niveles con {minAge}+ dias de antiguedad</p>
             </div>
           )
         )}

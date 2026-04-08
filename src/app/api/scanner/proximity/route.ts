@@ -1,13 +1,11 @@
 /**
- * GET /api/scanner/proximity?threshold=5&min_age_days=30
+ * GET /api/scanner/proximity?min_age_days=30&tickers=X,Y
  *
- * Scanner de proximidad S/R:
- * 1. Lee todos los tickers que tienen snapshots >= min_age_days de antigüedad
- * 2. Por cada ticker toma el snapshot confirmado más reciente (>= min_age_days)
- * 3. Extrae niveles S/R de M1/M2/M3/M5
- * 4. Fetcha precios actuales en batch desde Yahoo Finance
- * 5. Devuelve alertas donde |spot_actual - nivel| <= threshold (en $)
- *    ordenadas por distancia ascendente
+ * Scanner de proximidad S/R con umbral dinámico por ticker:
+ *   zona = max(1.5%, 0.5 × ATR14 / spot)
+ *
+ * Cada ticker tiene su propia zona de alerta según su volatilidad real.
+ * ATR se lee de backtest_results; si no hay backtest usa fallback de 2%.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -20,14 +18,20 @@ const HEADERS = {
   Referer: "https://finance.yahoo.com/",
 };
 
-// Fetch precios actuales en batch (hasta 100 símbolos por llamada)
+const MIN_PCT      = 0.015; // 1.5% mínimo para tickers estables
+const ATR_MULT     = 0.5;   // 0.5 × ATR = zona de medio movimiento diario
+const FALLBACK_PCT = 0.02;  // 2% si no hay ATR disponible
+
+function dynamicThresholdPct(atr14: number, spot: number): number {
+  if (!atr14 || !spot) return FALLBACK_PCT;
+  return Math.max(MIN_PCT, (ATR_MULT * atr14) / spot);
+}
+
 async function fetchBatchPrices(tickers: string[]): Promise<Record<string, number>> {
   const results: Record<string, number> = {};
   const BATCH = 50;
-
   for (let i = 0; i < tickers.length; i += BATCH) {
-    const batch   = tickers.slice(i, i + BATCH);
-    const symbols = batch.join(",");
+    const symbols = tickers.slice(i, i + BATCH).join(",");
     try {
       const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=regularMarketPrice`;
       const res = await fetch(url, { headers: HEADERS, cache: "no-store" });
@@ -38,14 +42,11 @@ async function fetchBatchPrices(tickers: string[]): Promise<Record<string, numbe
         if (q.regularMarketPrice) results[q.symbol] = q.regularMarketPrice;
       }
     } catch {}
-    // Pequeña pausa entre batches para no saturar Yahoo
     if (i + BATCH < tickers.length) await new Promise((r) => setTimeout(r, 300));
   }
-
   return results;
 }
 
-// Extrae pares [módulo, tipo, precio] de un snapshot
 function extractLevels(snap: any): { module: string; level_type: "support" | "resistance"; level: number }[] {
   const pairs: [string, "support" | "resistance", number | null][] = [
     ["M1", "support",    snap.m1_support],
@@ -63,9 +64,8 @@ function extractLevels(snap: any): { module: string; level_type: "support" | "re
 }
 
 export async function GET(req: NextRequest) {
-  const threshold   = parseFloat(req.nextUrl.searchParams.get("threshold")   ?? "5");
-  const minAgeDays  = parseInt(  req.nextUrl.searchParams.get("min_age_days") ?? "30", 10);
-  const tickersParam = req.nextUrl.searchParams.get("tickers");
+  const minAgeDays    = parseInt(req.nextUrl.searchParams.get("min_age_days") ?? "30", 10);
+  const tickersParam  = req.nextUrl.searchParams.get("tickers");
   const filterTickers = tickersParam ? tickersParam.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean) : null;
 
   const cutoffDate = new Date();
@@ -74,23 +74,23 @@ export async function GET(req: NextRequest) {
 
   const db = supabaseServer();
 
-  // ── 1. Snapshots confirmados (creados hace >= minAgeDays) ──────────────────
+  // ── 1. Snapshots confirmados ────────────────────────────────────────────────
   let query = db
     .from("sr_snapshots")
     .select("ticker, created_at, spot, m7_regime, m7_final_verdict, m7_confidence, m7_final_score, m1_support, m1_resistance, m2_support, m2_resistance, m3_support, m3_resistance, m5_support_strike, m5_resistance_strike")
     .lte("created_at", cutoff)
     .order("created_at", { ascending: false });
 
-  if (filterTickers?.length) {
-    query = query.in("ticker", filterTickers);
-  }
+  if (filterTickers?.length) query = query.in("ticker", filterTickers);
 
   const { data: snapshots, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!snapshots?.length) return NextResponse.json({ alerts: [], tickers_scanned: 0, message: `Sin snapshots con más de ${minAgeDays} días de antigüedad` });
+  if (!snapshots?.length) return NextResponse.json({
+    alerts: [], tickers_scanned: 0,
+    message: `Sin snapshots con más de ${minAgeDays} días de antigüedad`,
+  });
 
-  // Deduplicar: un snapshot por ticker (el más reciente dentro del corte)
   const byTicker = new Map<string, typeof snapshots[0]>();
   for (const snap of snapshots) {
     if (!byTicker.has(snap.ticker)) byTicker.set(snap.ticker, snap);
@@ -99,37 +99,53 @@ export async function GET(req: NextRequest) {
   const confirmedSnaps = Array.from(byTicker.values());
   const tickers        = confirmedSnaps.map((s) => s.ticker);
 
-  // ── 2. Precios actuales en batch ───────────────────────────────────────────
+  // ── 2. ATR por ticker desde backtest_results ────────────────────────────────
+  const { data: btRows } = await db
+    .from("backtest_results")
+    .select("ticker, atr14")
+    .in("ticker", tickers)
+    .gt("atr14", 0);
+
+  const atrByTicker: Record<string, number> = {};
+  for (const row of (btRows ?? [])) {
+    if (!atrByTicker[row.ticker]) atrByTicker[row.ticker] = row.atr14;
+  }
+
+  // ── 3. Precios actuales en batch ─────────────────────────────────────────────
   const currentPrices = await fetchBatchPrices(tickers);
 
-  // ── 3. Calcular proximidad ─────────────────────────────────────────────────
+  // ── 4. Proximidad con umbral dinámico por ticker ─────────────────────────────
   const alerts: {
-    ticker:        string;
-    spot_current:  number;
-    level:         number;
-    level_type:    "support" | "resistance";
-    module:        string;
-    distance_usd:  number;
-    distance_pct:  number;
+    ticker:         string;
+    spot_current:   number;
+    level:          number;
+    level_type:     "support" | "resistance";
+    module:         string;
+    distance_usd:   number;
+    distance_pct:   number;
+    threshold_pct:  number;
+    atr14:          number | null;
     level_age_days: number;
-    regime:        string | null;
-    m7_verdict:    string | null;
-    snapshot_date: string;
+    regime:         string | null;
+    m7_verdict:     string | null;
+    snapshot_date:  string;
   }[] = [];
 
   const now = Date.now();
 
   for (const snap of confirmedSnaps) {
-    const spotCurrent = currentPrices[snap.ticker];
+    const spotCurrent  = currentPrices[snap.ticker];
     if (!spotCurrent) continue;
 
-    const levels      = extractLevels(snap);
-    const snapMs      = new Date(snap.created_at).getTime();
-    const ageDays     = Math.floor((now - snapMs) / 86400000);
+    const atr14        = atrByTicker[snap.ticker] ?? 0;
+    const thresholdPct = dynamicThresholdPct(atr14, spotCurrent);
+    const thresholdUsd = spotCurrent * thresholdPct;
+    const levels       = extractLevels(snap);
+    const ageDays      = Math.floor((now - new Date(snap.created_at).getTime()) / 86400000);
 
     for (const { module, level_type, level } of levels) {
       const distance_usd = Math.abs(spotCurrent - level);
-      if (distance_usd > threshold) continue;
+      if (distance_usd > thresholdUsd) continue;
 
       const distance_pct = (distance_usd / spotCurrent) * 100;
 
@@ -141,6 +157,8 @@ export async function GET(req: NextRequest) {
         module,
         distance_usd:   Math.round(distance_usd * 100) / 100,
         distance_pct:   Math.round(distance_pct * 100) / 100,
+        threshold_pct:  Math.round(thresholdPct * 10000) / 100,
+        atr14:          atr14 > 0 ? Math.round(atr14 * 100) / 100 : null,
         level_age_days: ageDays,
         regime:         snap.m7_regime ?? null,
         m7_verdict:     snap.m7_final_verdict ?? null,
@@ -149,16 +167,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Ordenar por distancia en $ (más cercano primero)
-  alerts.sort((a, b) => a.distance_usd - b.distance_usd);
+  alerts.sort((a, b) => a.distance_pct - b.distance_pct);
 
   return NextResponse.json({
     alerts,
-    tickers_scanned:    tickers.length,
-    analyzed_tickers:   tickers,
-    threshold_usd:      threshold,
-    min_age_days:       minAgeDays,
-    cutoff_date:        cutoff.split("T")[0],
-    prices_fetched:     Object.keys(currentPrices).length,
+    tickers_scanned:  tickers.length,
+    analyzed_tickers: tickers,
+    min_age_days:     minAgeDays,
+    cutoff_date:      cutoff.split("T")[0],
+    prices_fetched:   Object.keys(currentPrices).length,
+    threshold_mode:   "dynamic_atr",
   });
 }
