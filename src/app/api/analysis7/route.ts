@@ -6,6 +6,7 @@ import { computeAnalysis5, compute25dSkew, type ExpData5 } from "@/lib/gex5";
 import { computeSpyMetrics, computeRegime }                from "@/lib/gex6";
 import { computeAnalysis7 }                                from "@/lib/gex7";
 import { supabaseServer }                                  from "@/lib/supabase";
+import { fetchFredMacro }                                  from "@/lib/fred";
 
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -187,13 +188,18 @@ export async function GET(request: NextRequest) {
     const m5 = computeAnalysis5(ticker, spot, expDataList, m1.levels.gammaFlip, m1.institutionalPressure, m1.putCallRatio, avgSkew25d, m2Support, m2Resistance, m3Support, m3Resistance);
 
     // ── M6 ────────────────────────────────────────────────────────────────────
-    const vix    = vixData.current;
-    const vix3m  = (vix3mData as any).current > 0 ? (vix3mData as any).current : vix * 1.05;
-    const vixHistory = vixData.history;
+    // ── FRED como fuente primaria de macro (VIX, VIX3M, HYG spread) ─────────────
+    const fredMacro = await fetchFredMacro();
 
+    const vix        = fredMacro?.vix        ?? vixData.current;
+    const vixHistory = fredMacro?.vixHistory ?? vixData.history;
+    const vix3m      = fredMacro?.vix3m      ?? ((vix3mData as any).current > 0 ? (vix3mData as any).current : vix * 1.05);
+
+    // HYG: FRED usa OAS spread (invertido vs precio), Yahoo como fallback
     const hygHistory = (hygData as any).history as number[];
     const hygCurrent = (hygData as any).current as number;
-    const hygChange5d = hygHistory[0] > 0 ? ((hygCurrent - hygHistory[0]) / hygHistory[0]) * 100 : 0;
+    const hygChange5d = fredMacro?.hygChange5d
+      ?? (hygHistory[0] > 0 ? ((hygCurrent - hygHistory[0]) / hygHistory[0]) * 100 : 0);
 
     const spyHistArr = (spyHistory as any).history as number[];
     const spyCurrent = (spyHistory as any).current as number;
