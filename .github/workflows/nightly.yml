@@ -2,7 +2,7 @@ name: SORE — Análisis Nocturno
 
 on:
   schedule:
-    - cron: '0 10 * * 1-5'   # 10:00 UTC = 6:00 AM EST, lun-vie
+    - cron: '0 14 * * 1-5'   # 14:00 UTC = 10:00 AM EST, lun-vie
   workflow_dispatch:           # ejecutable manualmente desde GitHub Actions
 
 jobs:
