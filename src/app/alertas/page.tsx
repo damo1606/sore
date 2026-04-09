@@ -34,6 +34,30 @@ interface ScanMeta {
   cutoff_date:     string;
 }
 
+interface Opportunity {
+  ticker:         string;
+  spot:           number;
+  level:          number;
+  level_type:     "support" | "resistance";
+  module:         string;
+  distance_pct:   number;
+  threshold_pct:  number;
+  probability:    number;
+  confidence:     "ALTA" | "MEDIA" | "BAJA";
+  direction:      "LONG" | "SHORT";
+  entry:          number;
+  stop:           number;
+  target:         number;
+  rr_ratio:       number;
+  regime:         string;
+  vix:            number | null;
+  fear_score:     number | null;
+  fear_label:     string | null;
+  level_age_days: number;
+  macro_source:   string;
+  backtest_used:  boolean;
+}
+
 interface BatchState {
   running:   boolean;
   total:     number;
@@ -79,9 +103,14 @@ export default function AlertasPage() {
   const [listFilter,   setListFilter]   = useState<0 | 1 | 2 | 3>(0);
   const [analyzedSet,  setAnalyzedSet]  = useState<Set<string>>(new Set());
   const [batch,        setBatch]        = useState<BatchState>({ running: false, total: 0, done: 0, current: "", errors: [], completed: [] });
-  const [livePrices,   setLivePrices]   = useState<Record<string, LivePrice>>({});
-  const [pricesAge,    setPricesAge]    = useState<string | null>(null);
+  const [livePrices,    setLivePrices]    = useState<Record<string, LivePrice>>({});
+  const [pricesAge,     setPricesAge]     = useState<string | null>(null);
   const [pricesLoading, setPricesLoading] = useState(false);
+  const [opps,          setOpps]          = useState<Opportunity[]>([]);
+  const [oppsLoading,   setOppsLoading]   = useState(false);
+  const [oppsError,     setOppsError]     = useState("");
+  const [minProb,       setMinProb]       = useState(45);
+  const [dirFilter,     setDirFilter]     = useState<"ALL" | "LONG" | "SHORT">("ALL");
   const stopRef     = useRef(false);
   const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -111,6 +140,19 @@ export default function AlertasPage() {
       setAnalyzedSet(new Set<string>(json.analyzed ?? []));
     } catch {}
   }, []);
+
+  // ── Scanner 2: oportunidades inteligentes ──────────────────────────────────
+  const runOpps = useCallback(async () => {
+    setOppsLoading(true);
+    setOppsError("");
+    try {
+      const res  = await fetch(`/api/scanner/opportunities?tickers=${watchlistTickers.join(",")}&min_probability=${minProb}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Error al escanear");
+      setOpps(json.opportunities ?? []);
+    } catch (e: any) { setOppsError(e.message); }
+    setOppsLoading(false);
+  }, [minProb]);
 
   // ── Scanner de proximidad ───────────────────────────────────────────────────
   const runScan = useCallback(async () => {
@@ -174,9 +216,8 @@ export default function AlertasPage() {
   const stopBatch = () => { stopRef.current = true; };
 
   useEffect(() => {
-    loadStatus().then(() => runScan());
+    loadStatus().then(() => { runScan(); runOpps(); });
     fetchLivePrices();
-    // Auto-refresh cada 30s
     refreshRef.current = setInterval(fetchLivePrices, REFRESH_INTERVAL);
     return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
   }, []);
@@ -552,6 +593,143 @@ export default function AlertasPage() {
             </div>
           )
         )}
+
+        {/* ── SCANNER 2: OPORTUNIDADES INTELIGENTES ─────────────────────────── */}
+        <div className="space-y-4 pt-4 border-t border-border">
+
+          {/* Título */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="text-xl font-black tracking-[0.3em] text-accent">SCANNER</h2>
+              <p className="text-xs text-muted tracking-widest mt-0.5">oportunidades filtradas por regimen · VIX · probabilidad · con estructura de trade</p>
+            </div>
+            <button
+              onClick={runOpps}
+              disabled={oppsLoading}
+              className="bg-accent text-white px-5 py-2 text-xs font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
+            >
+              {oppsLoading ? "ESCANEANDO..." : "ESCANEAR"}
+            </button>
+          </div>
+
+          {/* Filtros */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="space-y-1">
+              <p className="text-[9px] text-muted tracking-widest font-bold">PROBABILIDAD MINIMA</p>
+              <div className="flex gap-1.5">
+                {[40, 45, 55, 65].map((v) => (
+                  <button key={v} onClick={() => setMinProb(v)} className={`text-xs px-3 py-1 border tracking-widest transition-colors ${minProb === v ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-text"}`}>
+                    {v}%+
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[9px] text-muted tracking-widest font-bold">DIRECCION</p>
+              <div className="flex gap-1.5">
+                {(["ALL", "LONG", "SHORT"] as const).map((d) => (
+                  <button key={d} onClick={() => setDirFilter(d)} className={`text-xs px-3 py-1 border tracking-widest transition-colors ${dirFilter === d ? "bg-accent text-white border-accent" : "border-border text-muted hover:text-text"}`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {oppsError && <div className="border border-danger text-danger text-xs p-3 tracking-widest">{oppsError}</div>}
+
+          {/* Cards de oportunidades */}
+          {(() => {
+            const filtered2 = opps.filter((o) => dirFilter === "ALL" || o.direction === dirFilter);
+            if (!oppsLoading && filtered2.length === 0) return (
+              <div className="flex flex-col items-center justify-center h-28 gap-2 text-muted border border-border">
+                <p className="text-sm tracking-widest font-bold">SIN OPORTUNIDADES</p>
+                <p className="text-xs opacity-60">ninguna alerta supera el umbral de probabilidad con regimen favorable</p>
+              </div>
+            );
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filtered2.map((o, i) => {
+                  const isLong    = o.direction === "LONG";
+                  const dirColor  = isLong ? "#22c55e" : "#ef4444";
+                  const probColor = o.probability >= 65 ? "#22c55e" : o.probability >= 45 ? "#f59e0b" : "#ef4444";
+                  const wl        = DEFAULT_WATCHLIST.find((w) => w.ticker === o.ticker);
+                  return (
+                    <div key={i} className="bg-card border border-border p-4 space-y-3 hover:border-accent/50 transition-colors">
+
+                      {/* Header: ticker + dirección + P% */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <a href={`/?ticker=${o.ticker}`} className="text-base font-black tracking-widest text-accent hover:underline">{o.ticker}</a>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded tracking-widest" style={{ color: dirColor, backgroundColor: `${dirColor}20` }}>{o.direction}</span>
+                          <span className="text-[9px] text-muted">{o.module}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black font-mono" style={{ color: probColor }}>{o.probability}%</p>
+                          <p className="text-[9px] tracking-widest font-bold" style={{ color: probColor }}>{o.confidence}</p>
+                        </div>
+                      </div>
+
+                      {/* Precio actual → nivel */}
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono font-bold text-text">${o.spot.toFixed(2)}</span>
+                        <span className="text-muted">→</span>
+                        <span className="font-mono text-muted">${o.level.toFixed(2)}</span>
+                        <span className={`text-[9px] font-bold ${o.level_type === "support" ? "text-accent" : "text-danger"}`}>
+                          {o.level_type === "support" ? "SUP" : "RES"}
+                        </span>
+                        <span className="ml-auto text-muted text-[10px]">{o.distance_pct.toFixed(2)}% dist</span>
+                      </div>
+
+                      {/* Barra de probabilidad */}
+                      <div className="h-1 bg-surface rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${o.probability}%`, backgroundColor: probColor }} />
+                      </div>
+
+                      {/* Entry / Stop / Target */}
+                      <div className="grid grid-cols-3 gap-1 text-center">
+                        <div className="bg-surface p-1.5 rounded">
+                          <p className="text-[8px] text-muted tracking-widest">ENTRY</p>
+                          <p className="text-[11px] font-mono font-bold text-text">${o.entry.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-surface p-1.5 rounded border border-danger/30">
+                          <p className="text-[8px] text-danger tracking-widest">STOP</p>
+                          <p className="text-[11px] font-mono font-bold text-danger">${o.stop.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-surface p-1.5 rounded border border-accent/30">
+                          <p className="text-[8px] text-accent tracking-widest">TARGET</p>
+                          <p className="text-[11px] font-mono font-bold text-accent">${o.target.toFixed(2)}</p>
+                        </div>
+                      </div>
+
+                      {/* RR + contexto macro */}
+                      <div className="flex items-center justify-between text-[10px] text-muted">
+                        <span className="font-bold text-text">RR {o.rr_ratio.toFixed(1)}x</span>
+                        <div className="flex items-center gap-2">
+                          {o.vix != null && <span>VIX {o.vix.toFixed(1)}</span>}
+                          <span className={`font-bold ${
+                            o.regime?.includes("COMP") ? "text-accent" :
+                            o.regime?.includes("TRANS") ? "text-warning" : "text-muted"
+                          }`}>{o.regime ?? "—"}</span>
+                          {o.fear_label && <span className="text-[9px] opacity-70">{o.fear_label.split(" ")[0]}</span>}
+                        </div>
+                      </div>
+
+                      {/* Footer: edad del nivel + fuente */}
+                      <div className="flex items-center justify-between text-[9px] text-muted border-t border-border pt-2">
+                        <span>{o.level_age_days}d · {o.snapshot_date}</span>
+                        <div className="flex items-center gap-1.5">
+                          {!o.backtest_used && <span className="text-warning">sin backtest</span>}
+                          <span className={o.macro_source === "FRED" ? "text-accent" : "text-muted"}>{o.macro_source}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
 
       </div>
     </div>
