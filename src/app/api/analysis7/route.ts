@@ -268,6 +268,15 @@ export async function GET(request: NextRequest) {
         m7_regime_multiplier:      result.regimeMultiplier,
         m7_sr_table:               result.srTable,
         m7_timing_matrix:          result.timingMatrix,
+        m6_vix:                    m6.vix,
+        m6_vix3m:                  m6.vix3m,
+        m6_vix_ratio:              Math.round(m6.vixRatio * 1000) / 1000,
+        m6_spy_gex:                Math.round(spyGexTotal),
+        m6_spy_pcr:                Math.round(spyPcr * 100) / 100,
+        m6_fear_score:             m6.fearScore,
+        m6_fear_label:             m6.fearLabel,
+        m6_regime_score:           Math.round(m6.regimeScore * 1000) / 1000,
+        macro_source:              fredMacro ? "FRED" : "YAHOO",
       }))
       .then(() => {}).catch(() => {});
 
