@@ -56,6 +56,7 @@ interface Opportunity {
   level_age_days: number;
   macro_source:   string;
   backtest_used:  boolean;
+  snapshot_date?: string;
 }
 
 interface BatchState {
