@@ -201,8 +201,10 @@ export default function AlertasPage() {
   }, [minAge]);
 
   // ── Batch analyzer ──────────────────────────────────────────────────────────
-  const runBatch = useCallback(async () => {
-    const pending = DEFAULT_WATCHLIST.map((w) => w.ticker).filter((t) => !analyzedSet.has(t));
+  const runBatch = useCallback(async (all = false) => {
+    const pending = all
+      ? DEFAULT_WATCHLIST.map((w) => w.ticker)
+      : DEFAULT_WATCHLIST.map((w) => w.ticker).filter((t) => !analyzedSet.has(t));
     if (!pending.length) return;
 
     stopRef.current = false;
@@ -349,15 +351,23 @@ export default function AlertasPage() {
                 {pendingCount === 0 && <span className="text-accent ml-2">· todos completos</span>}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {!batch.running ? (
-                <button
-                  onClick={runBatch}
-                  disabled={pendingCount === 0}
-                  className="bg-accent text-white px-5 py-2 text-xs font-bold tracking-widest hover:opacity-80 disabled:opacity-30 transition-opacity"
-                >
-                  ANALIZAR PENDIENTES ({pendingCount})
-                </button>
+                <>
+                  <button
+                    onClick={() => runBatch(false)}
+                    disabled={pendingCount === 0}
+                    className="bg-accent text-white px-5 py-2 text-xs font-bold tracking-widest hover:opacity-80 disabled:opacity-30 transition-opacity"
+                  >
+                    ANALIZAR PENDIENTES ({pendingCount})
+                  </button>
+                  <button
+                    onClick={() => runBatch(true)}
+                    className="border border-accent text-accent px-5 py-2 text-xs font-bold tracking-widest hover:bg-accent/10 transition-colors"
+                  >
+                    ANALIZAR TODOS (37)
+                  </button>
+                </>
               ) : (
                 <button onClick={stopBatch} className="border border-danger text-danger px-5 py-2 text-xs font-bold tracking-widest hover:bg-danger/10 transition-colors">
                   DETENER
