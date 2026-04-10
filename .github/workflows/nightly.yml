@@ -11,13 +11,13 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Analizar 37 tickers (3 en paralelo)
+      - name: Analizar 38 tickers (3 en paralelo)
         env:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           TICKERS=(
-            QQQ XLK XLY XLC XLF XLE XLI XLB XLV XLP TLT GLD HYG
+            QQQ XLK XLY XLC XLF XLE XLI XLB XLV XLP TLT GLD HYG CIBR
             NVDA AAPL TSLA AMZN META MSFT AMD GOOGL NFLX PLTR COIN MSTR
             SPY IWM EEM JPM GS BAC XOM LLY UNH V COST KO
           )

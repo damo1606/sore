@@ -26,6 +26,7 @@ export const LISTA_1: WatchlistTicker[] = [
   { ticker: "TLT",  label: "Bonos largo plazo",      list: 1 },
   { ticker: "GLD",  label: "Oro / Macro",            list: 1 },
   { ticker: "HYG",  label: "Bonos basura / Credito", list: 1 },
+  { ticker: "CIBR", label: "Ciberseguridad",         list: 1 },
 ];
 
 // Lista 2 — Mayor prima de negociacion (12 acciones individuales)
