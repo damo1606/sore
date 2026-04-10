@@ -14,6 +14,7 @@ jobs:
       - name: Analizar 37 tickers (3 en paralelo)
         env:
           APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           TICKERS=(
             QQQ XLK XLY XLC XLF XLE XLI XLB XLV XLP TLT GLD HYG
@@ -39,6 +40,7 @@ jobs:
               (
                 HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
                   --max-time 55 \
+                  -H "x-cron-secret: ${CRON_SECRET}" \
                   "${APP_URL}/api/analysis7?ticker=${ticker}")
                 if [ "$HTTP" = "200" ]; then
                   echo "  ✓ $ticker"

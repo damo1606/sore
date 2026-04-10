@@ -9,6 +9,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Permitir llamadas internas del cron con secret header
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && request.headers.get("x-cron-secret") === cronSecret) {
+    return NextResponse.next();
+  }
+
   const token = request.cookies.get(SESSION_COOKIE)?.value;
 
   if (!token) {
