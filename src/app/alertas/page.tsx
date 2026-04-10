@@ -111,6 +111,12 @@ export default function AlertasPage() {
   const [oppsError,     setOppsError]     = useState("");
   const [minProb,       setMinProb]       = useState(45);
   const [dirFilter,     setDirFilter]     = useState<"ALL" | "LONG" | "SHORT">("ALL");
+  const [customTicker,  setCustomTicker]  = useState("");
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customError,   setCustomError]   = useState("");
+  const [customOpps,    setCustomOpps]    = useState<Opportunity[]>([]);
+  const [customAnalyzed,setCustomAnalyzed]= useState(false);
+  const [customStep,    setCustomStep]    = useState<"idle" | "analyzing" | "scanning">("idle");
   const stopRef     = useRef(false);
   const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -140,6 +146,31 @@ export default function AlertasPage() {
       setAnalyzedSet(new Set<string>(json.analyzed ?? []));
     } catch {}
   }, []);
+
+  // ── Ticker personalizado ────────────────────────────────────────────────────
+  const runCustomTicker = useCallback(async () => {
+    const tk = customTicker.trim().toUpperCase();
+    if (!tk) return;
+    setCustomLoading(true);
+    setCustomError("");
+    setCustomOpps([]);
+    setCustomAnalyzed(false);
+    try {
+      setCustomStep("analyzing");
+      const a7 = await fetch(`/api/analysis7?ticker=${tk}`);
+      if (!a7.ok) {
+        const j = await a7.json().catch(() => ({}));
+        throw new Error(j.error ?? `Error al analizar ${tk}`);
+      }
+      setCustomStep("scanning");
+      const sc = await fetch(`/api/scanner/opportunities?tickers=${tk}&min_probability=${minProb}`);
+      const sj = await sc.json();
+      setCustomOpps(sj.opportunities ?? []);
+      setCustomAnalyzed(true);
+    } catch (e: any) { setCustomError(e.message); }
+    setCustomStep("idle");
+    setCustomLoading(false);
+  }, [customTicker, minProb]);
 
   // ── Scanner 2: oportunidades inteligentes ──────────────────────────────────
   const runOpps = useCallback(async () => {
@@ -610,6 +641,97 @@ export default function AlertasPage() {
             >
               {oppsLoading ? "ESCANEANDO..." : "ESCANEAR"}
             </button>
+          </div>
+
+          {/* Buscador ticker personalizado */}
+          <div className="bg-surface border border-border p-4 space-y-3">
+            <p className="text-[9px] text-muted tracking-widest font-bold">BUSCAR TICKER PERSONALIZADO</p>
+            <p className="text-[10px] text-muted">Analiza cualquier ticker de US equity que no este en los 37 — corre M7 completo y muestra oportunidades</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                value={customTicker}
+                onChange={(e) => { setCustomTicker(e.target.value.toUpperCase()); setCustomAnalyzed(false); setCustomOpps([]); setCustomError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && !customLoading && runCustomTicker()}
+                placeholder="Ej. ORCL, UBER, SHOP..."
+                maxLength={10}
+                className="bg-card border border-border text-text font-mono font-bold text-sm px-4 py-2 tracking-widest placeholder:text-muted/40 focus:outline-none focus:border-accent w-44"
+              />
+              <button
+                onClick={runCustomTicker}
+                disabled={customLoading || !customTicker.trim()}
+                className="bg-accent text-white px-5 py-2 text-xs font-bold tracking-widest hover:opacity-80 disabled:opacity-40 transition-opacity"
+              >
+                {customLoading
+                  ? customStep === "analyzing" ? "ANALIZANDO M7..." : "ESCANEANDO..."
+                  : "ANALIZAR"}
+              </button>
+              {customAnalyzed && !customLoading && (
+                <span className="text-[10px] text-accent font-bold tracking-widest">
+                  {customOpps.length > 0 ? `${customOpps.length} oportunidad${customOpps.length > 1 ? "es" : ""}` : "sin oportunidades con ese umbral"}
+                </span>
+              )}
+            </div>
+            {customError && <p className="text-[10px] text-danger">{customError}</p>}
+            {customOpps.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                {customOpps.map((o, i) => {
+                  const isLong   = o.direction === "LONG";
+                  const dirColor = isLong ? "#22c55e" : "#ef4444";
+                  const probColor = o.probability >= 65 ? "#22c55e" : o.probability >= 45 ? "#f59e0b" : "#ef4444";
+                  return (
+                    <div key={i} className="bg-card border border-accent/40 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <a href={`/?ticker=${o.ticker}`} className="text-base font-black tracking-widest text-accent hover:underline">{o.ticker}</a>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded tracking-widest" style={{ color: dirColor, backgroundColor: `${dirColor}20` }}>{o.direction}</span>
+                          <span className="text-[9px] text-muted">{o.module}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black font-mono" style={{ color: probColor }}>{o.probability}%</p>
+                          <p className="text-[9px] tracking-widest font-bold" style={{ color: probColor }}>{o.confidence}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono font-bold text-text">${o.spot.toFixed(2)}</span>
+                        <span className="text-muted">→</span>
+                        <span className="font-mono text-muted">${o.level.toFixed(2)}</span>
+                        <span className={`text-[9px] font-bold ${o.level_type === "support" ? "text-accent" : "text-danger"}`}>{o.level_type === "support" ? "SUP" : "RES"}</span>
+                        <span className="ml-auto text-muted text-[10px]">{o.distance_pct.toFixed(2)}% dist</span>
+                      </div>
+                      <div className="h-1 bg-surface rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${o.probability}%`, backgroundColor: probColor }} />
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 text-center">
+                        <div className="bg-surface p-1.5 rounded">
+                          <p className="text-[8px] text-muted tracking-widest">ENTRY</p>
+                          <p className="text-[11px] font-mono font-bold text-text">${o.entry.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-surface p-1.5 rounded border border-danger/30">
+                          <p className="text-[8px] text-danger tracking-widest">STOP</p>
+                          <p className="text-[11px] font-mono font-bold text-danger">${o.stop.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-surface p-1.5 rounded border border-accent/30">
+                          <p className="text-[8px] text-accent tracking-widest">TARGET</p>
+                          <p className="text-[11px] font-mono font-bold text-accent">${o.target.toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted">
+                        <span className="font-bold text-text">RR {o.rr_ratio.toFixed(1)}x</span>
+                        <div className="flex items-center gap-2">
+                          {o.vix != null && <span>VIX {o.vix.toFixed(1)}</span>}
+                          <span className={`font-bold ${o.regime?.includes("COMP") ? "text-accent" : o.regime?.includes("TRANS") ? "text-warning" : "text-muted"}`}>{o.regime ?? "—"}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-muted border-t border-border pt-2">
+                        <span>{o.level_age_days}d · {o.snapshot_date}</span>
+                        <span className={o.macro_source === "FRED" ? "text-accent" : "text-muted"}>{o.macro_source}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Filtros */}
